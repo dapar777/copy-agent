@@ -1,0 +1,480 @@
+{
+  "name": "copy-agent",
+  "displayName": "Copy Agent",
+  "description": "Kódovací agent pro VS Code, který s LLM mluví přes schránku: prompt → chat (Copilot v Teams, claude.ai, ChatGPT…) → odpověď → akce. Bez API klíče.",
+  "version": "0.1.0",
+  "publisher": "dapar",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "copyAgent",
+          "title": "Copy Agent",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "copyAgent": [
+        {
+          "type": "webview",
+          "id": "copyAgent.panel",
+          "name": "Copy Agent"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "copyAgent.newTask",
+        "title": "Copy Agent: Nový úkol"
+      },
+      {
+        "command": "copyAgent.pasteReply",
+        "title": "Copy Agent: Vložit odpověď ze schránky"
+      },
+      {
+        "command": "copyAgent.copyPromptAgain",
+        "title": "Copy Agent: Zkopírovat aktuální prompt znovu"
+      },
+      {
+        "command": "copyAgent.nextPart",
+        "title": "Copy Agent: Další krok doručení promptu (část textu / přílohy) do schránky"
+      },
+      {
+        "command": "copyAgent.showPrompt",
+        "title": "Copy Agent: Zobrazit aktuální prompt"
+      },
+      {
+        "command": "copyAgent.resendContext",
+        "title": "Copy Agent: Znovu poslat kontext (nový chat)"
+      },
+      {
+        "command": "copyAgent.undoTurn",
+        "title": "Copy Agent: Undo posledního kola"
+      },
+      {
+        "command": "copyAgent.abort",
+        "title": "Copy Agent: Zrušit úkol"
+      },
+      {
+        "command": "copyAgent.interrupt",
+        "title": "Copy Agent: Přerušit prováděné akce"
+      },
+      {
+        "command": "copyAgent.suggest",
+        "title": "Copy Agent: Navrhnout skilly, hooky a úkoly z průběhu"
+      },
+      {
+        "command": "copyAgent.showTranscript",
+        "title": "Copy Agent: Otevřít záznam průběhu"
+      },
+      {
+        "command": "copyAgent.reloadSkills",
+        "title": "Copy Agent: Znovu načíst skilly"
+      },
+      {
+        "command": "copyAgent.openSettings",
+        "title": "Copy Agent: Otevřít nastavení"
+      },
+      {
+        "command": "copyAgent.copyAgentInstructions",
+        "title": "Copy Agent: Zkopírovat instrukce pro agenta v Copilotu (Teams)"
+      },
+      {
+        "command": "copyAgent.toggleAutoApprove",
+        "title": "Copy Agent: Přepnout automatické schvalování příkazů"
+      },
+      {
+        "command": "copyAgent.review.next",
+        "title": "Copy Agent: Projít změny (další změna)"
+      },
+      {
+        "command": "copyAgent.review.acceptAll",
+        "title": "Copy Agent: Přijmout všechny změny"
+      },
+      {
+        "command": "copyAgent.review.rejectAll",
+        "title": "Copy Agent: Zamítnout všechny změny"
+      },
+      {
+        "command": "copyAgent.review.acceptHunk",
+        "title": "Copy Agent: Přijmout změnu"
+      },
+      {
+        "command": "copyAgent.review.rejectHunk",
+        "title": "Copy Agent: Zamítnout změnu"
+      },
+      {
+        "command": "copyAgent.review.acceptFile",
+        "title": "Copy Agent: Přijmout změny v souboru"
+      },
+      {
+        "command": "copyAgent.review.rejectFile",
+        "title": "Copy Agent: Zamítnout změny v souboru"
+      },
+      {
+        "command": "copyAgent.review.openDiff",
+        "title": "Copy Agent: Zobrazit diff souboru"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "copyAgent.review.acceptHunk",
+          "when": "false"
+        },
+        {
+          "command": "copyAgent.review.rejectHunk",
+          "when": "false"
+        },
+        {
+          "command": "copyAgent.review.acceptFile",
+          "when": "false"
+        },
+        {
+          "command": "copyAgent.review.rejectFile",
+          "when": "false"
+        },
+        {
+          "command": "copyAgent.review.openDiff",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "copyAgent.newTask",
+        "key": "ctrl+alt+c"
+      },
+      {
+        "command": "copyAgent.pasteReply",
+        "key": "ctrl+alt+v"
+      },
+      {
+        "command": "copyAgent.nextPart",
+        "key": "ctrl+alt+n"
+      }
+    ],
+    "configuration": {
+      "title": "Copy Agent",
+      "properties": {
+        "copyAgent.target": {
+          "type": "string",
+          "enum": [
+            "copilot-agent",
+            "generic"
+          ],
+          "default": "copilot-agent",
+          "enumDescriptions": [
+            "Agent v Copilotu (Teams) s instrukcemi z copilot-agent/INSTRUCTIONS.md: protokol už zná, prompty jsou krátké.",
+            "Obecný chat (claude.ai, ChatGPT, Gemini, prázdný Copilot): první prompt nese celý popis protokolu."
+          ],
+          "description": "Kam se prompty vkládají. Určuje, jak dlouhý je úvodní prompt (popis protokolu) a připomínky formátu."
+        },
+        "copyAgent.prompt.maxChars": {
+          "type": "number",
+          "default": 8000,
+          "description": "Maximální délka jedné zprávy pro chat. Delší prompt se rozdělí na části (PART i/n), které vložíte po sobě; model odpoví až na poslední. Copilot v Teams má limit podle tenantu 4 000–16 000 znaků; ověřte vložením dlouhého textu a nastavte."
+        },
+        "copyAgent.prompt.resultMaxChars": {
+          "type": "number",
+          "default": 6000,
+          "description": "Maximální délka výstupu jednoho příkazu nebo hledání v promptu; obsah souborů z <read> se nezkracuje, ale dlouhé čtení se rozdělí na části. Celý výstup je vždy v .copy-agent/out/."
+        },
+        "copyAgent.prompt.treeMaxEntries": {
+          "type": "number",
+          "default": 120,
+          "description": "Kolik položek se nejvýš vypíše ve stromu projektu v úvodním promptu."
+        },
+        "copyAgent.prompt.language": {
+          "type": "string",
+          "default": "cs",
+          "description": "Jazyk, kterým má model mluvit s uživatelem (status, ask, done)."
+        },
+        "copyAgent.prompt.header": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "multilineText",
+          "description": "Text vložený před každý prompt (např. pokyn pro konkrétní chat). Zástupné znaky: {turn}, {project}."
+        },
+        "copyAgent.prompt.footer": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "multilineText",
+          "description": "Text připojený za každý prompt. Zástupné znaky: {turn}, {project}."
+        },
+        "copyAgent.prompt.asFile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Jen Windows: text promptu jde do schránky jako soubor prompt-N.txt spolu s přílohami (jedno Ctrl+V vloží vše). Agent v Copilotu umí prompt v příloze přečíst; obecný chat ne vždy."
+        },
+        "copyAgent.reply.maxChars": {
+          "type": "number",
+          "default": 9000,
+          "description": "Kolik znaků má model nejvýš dát do jedné odpovědi (Copilot odpovědi ořezává). Delší práci má rozdělit na části (part=\"1/2\"); agent si o další část řekne sám."
+        },
+        "copyAgent.context.auto": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatický kontext: k úvodnímu promptu přiložit soubory, které zadání zřejmě zmiňuje (cesty, identifikátory, aktivní soubor), aby model nemusel začínat průzkumem."
+        },
+        "copyAgent.context.autoMaxChars": {
+          "type": "number",
+          "default": 14000,
+          "description": "Rozpočet automatického kontextu ve znacích (dělí se na části podle copyAgent.prompt.maxChars)."
+        },
+        "copyAgent.context.full": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "always",
+            "off"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            "Když je codebase menší než copyAgent.context.fullMaxChars, přiloží se celá; jinak jen automaticky vybrané soubory.",
+            "Vždy přiložit celou codebase (i velkou).",
+            "Nikdy; model si soubory vyžádá (nebo dostane jen automatický výběr)."
+          ],
+          "description": "Celá codebase jako jeden soubor .txt přiložený k úvodnímu promptu (méně kol: model má vše hned). Soubor se dá do schránky po vložení textu promptu; v Teams ho připojí Ctrl+V."
+        },
+        "copyAgent.context.fullMaxChars": {
+          "type": "number",
+          "default": 800000,
+          "description": "Nad tolik znaků se celá codebase v režimu auto nepřikládá (velké přílohy chat čte jen po částech). Binární soubory a .gitignore se vynechávají vždy."
+        },
+        "copyAgent.clipboard.watch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hlídat schránku a odpověď převzít automaticky."
+        },
+        "copyAgent.clipboard.pollMs": {
+          "type": "number",
+          "default": 300,
+          "description": "Jak často (ms) se kontroluje schránka, když se čeká na odpověď modelu."
+        },
+        "copyAgent.clipboard.pasteDetection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Jen Windows: poznat, že prompt byl skutečně vložen do chatu (vlastnictví schránky s odloženým vykreslením). Vypněte, když vadí krátký pomocný proces PowerShellu."
+        },
+        "copyAgent.bundle.delivery": {
+          "type": "string",
+          "enum": [
+            "text",
+            "history",
+            "file"
+          ],
+          "default": "file",
+          "enumDescriptions": [
+            "Svazek jde jako text v částech promptu (vždy funguje, ale u velkých svazků to je hodně vkládání).",
+            "Svazek jde do historie schránky (Win+V) jako samostatný text před promptem.",
+            "Jen Windows (výchozí): soubor svazku se dá do schránky hned po vložení textu promptu; Ctrl+V v chatu ho připojí jako přílohu. Jinde se přiloží ručně z .copy-agent/out/."
+          ],
+          "description": "Jak předat svazek souborů (<bundle>) do chatu."
+        },
+        "copyAgent.bundle.usage": {
+          "type": "string",
+          "enum": [
+            "off",
+            "allow",
+            "encourage",
+            "prefer"
+          ],
+          "default": "encourage",
+          "description": "Jak silně pobízet model k hromadnému <bundle> místo mnoha jednotlivých <read>."
+        },
+        "copyAgent.reply.watchDir": {
+          "type": "string",
+          "default": "",
+          "description": "Složky (oddělené středníkem), kde se čeká na odpověď modelu jako nový nebo přepsaný soubor (chaty, které umí dát soubor ke stažení). Prázdné = jen schránka."
+        },
+        "copyAgent.run.autoAllow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "npm test",
+            "npm run build",
+            "npm run lint",
+            "npm run typecheck",
+            "npx tsc",
+            "tsc",
+            "git status",
+            "git diff",
+            "git log",
+            "npx vitest run",
+            "pytest",
+            "python -m pytest",
+            "cargo test",
+            "cargo build",
+            "go test",
+            "go build",
+            "dotnet build",
+            "dotnet test"
+          ],
+          "description": "Příkazy (prefixy), které se spouštějí bez potvrzení."
+        },
+        "copyAgent.run.allowPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Regulární výrazy na celý příkaz, které se spouštějí bez potvrzení (přidává i tlačítko „Povolit vždy“)."
+        },
+        "copyAgent.run.approval": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "auto"
+          ],
+          "default": "ask",
+          "description": "ask: příkazy mimo allowlist se schvalují v panelu. auto: spouštějí se bez dotazu (denylist platí dál)."
+        },
+        "copyAgent.run.deny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "rm -rf /",
+            "git push --force",
+            "git push -f",
+            "sudo ",
+            "format ",
+            "del /s",
+            "Remove-Item -Recurse",
+            "rmdir /s"
+          ],
+          "description": "Příkazy (podřetězce), které se nikdy nespustí."
+        },
+        "copyAgent.protectedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".env",
+            ".env.*",
+            ".git/**",
+            "node_modules/**",
+            "**/*.pem",
+            "**/*.key"
+          ],
+          "description": "Cesty (globy), do kterých agent nesmí zapisovat ani je mazat."
+        },
+        "copyAgent.review.requireApproval": {
+          "type": "boolean",
+          "default": false,
+          "description": "Ukázat diff a čekat na schválení před každým zápisem."
+        },
+        "copyAgent.review.beforeDone": {
+          "type": "string",
+          "enum": [
+            "always",
+            "auto",
+            "off"
+          ],
+          "default": "off",
+          "enumDescriptions": [
+            "Po každé změně souborů je první <done> jen výzvou k revizi celé práce.",
+            "Revize jen u větších změn (více souborů nebo celý přepsaný soubor).",
+            "Žádná revize, <done> platí hned."
+          ],
+          "description": "Revize před dokončením: model dostane celé znění změněných souborů a zkontroluje práci. Stojí další kolo, proto je ve výchozím stavu vypnutá."
+        },
+        "copyAgent.checkpoint.git": {
+          "type": "boolean",
+          "default": true,
+          "description": "Před každým kolem uložit git checkpoint pro Undo."
+        },
+        "copyAgent.plan.auto": {
+          "type": "boolean",
+          "default": true,
+          "description": "Model smí u větších úkolů sám založit a udržovat plán (.copy-agent/plan.md)."
+        },
+        "copyAgent.ask.direct": {
+          "type": "boolean",
+          "default": true,
+          "description": "Přímý dialog: model se smí ptát přímo v chatu a uživatel tam odpovídat; výměnu pak model zapíše akcí <dialog>."
+        },
+        "copyAgent.suggest.continuous": {
+          "type": "boolean",
+          "default": false,
+          "description": "Model smí průběžně navrhovat skilly, hooky, povolení a úkoly (<suggest>)."
+        },
+        "copyAgent.files.defaultEncoding": {
+          "type": "string",
+          "enum": [
+            "utf8",
+            "utf8bom",
+            "windows-1250",
+            "windows-1252",
+            "iso-8859-2"
+          ],
+          "default": "utf8",
+          "description": "Kódování nových souborů. U existujících se vždy zachová jejich kódování, BOM i konce řádků."
+        },
+        "copyAgent.files.fallbackEncoding": {
+          "type": "string",
+          "enum": [
+            "windows-1250",
+            "windows-1252",
+            "iso-8859-2",
+            "utf8"
+          ],
+          "default": "windows-1250",
+          "description": "Jak číst soubor, který není platný UTF-8 a nemá BOM."
+        },
+        "copyAgent.notify.sound": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pípnout, když agent potřebuje vaši pozornost."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "gen:instructions": "node dist/gen-instructions.js",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build -- --production"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dapar777/copy-agent"
+  },
+  "keywords": [
+    "agent",
+    "copilot",
+    "teams",
+    "clipboard",
+    "coding-agent",
+    "llm"
+  ]
+}

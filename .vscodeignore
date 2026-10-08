@@ -1,0 +1,9 @@
+**
+!dist/extension.js
+!skills/**
+!copilot-agent/**
+!media/**
+!package.json
+!README.md
+!LICENSE*
+!CHANGELOG*

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+.copy-agent/
+.tmp/
+# sestavený balíček se verzuje záměrně (instalace bez buildu)
+# lokální nastavení z testování rozšíření
+.vscode/settings.json
