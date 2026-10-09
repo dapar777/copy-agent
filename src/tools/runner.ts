@@ -209,7 +209,14 @@ export class ToolRunner {
     if (blocked) return { tool: "write", attrs: a.attrs, status: "denied", output: blocked };
     const exists = await this.host.exists(path);
     const baseline = exists ? await this.host.readFile(path) : "";
-    const content = ensureTrailingNewline(a.body ?? "", baseline);
+    const body = a.body ?? "";
+    // ochrana obsahu: existující soubor se nesmí přepsat zástupným textem („viz výše“) ani zlomkem
+    // původní délky; takový <write> by soubor fakticky smazal. Model dostane, co poslat místo toho.
+    if (exists && !/^(true|1|yes)$/i.test(a.attrs.force ?? "")) {
+      const refusal = refuseWrite(body, baseline);
+      if (refusal) return { tool: "write", attrs: a.attrs, status: "error", output: refusal.text, meta: { refused: refusal.reason } };
+    }
+    const content = ensureTrailingNewline(body, baseline);
     if (!(await this.approve(path, baseline, content))) return { tool: "write", attrs: a.attrs, status: "denied", output: "The user declined this change." };
     this.listener?.onWillChange(path, exists ? "modify" : "create", baseline, turn);
     const enc = await this.host.fileEncoding(path);
@@ -218,7 +225,24 @@ export class ToolRunner {
     this.markChanged(outcome, { path, kind: exists ? "modify" : "create", lines, rewritten: exists });
     const meta: Record<string, string | number> = { [exists ? "overwritten" : "created"]: `${lines} lines` };
     if (!isPlainUtf8Lf(enc)) meta.encoding = describeEncodingEn(enc);
-    return { tool: "write", attrs: a.attrs, status: "ok", meta };
+    return this.verifyEncoding(path, enc, content, { tool: "write", attrs: a.attrs, status: "ok", meta });
+  }
+
+  /**
+   * Po zápisu ověří, že soubor zůstal ve svém kódování (editor mohl uložit jinak). Rozdíl se hlásí
+   * jako varování ve výsledku, aby o něm věděl model i uživatel.
+   */
+  private async verifyEncoding(path: string, before: { encoding: string; bom: boolean; eol: "lf" | "crlf" }, content: string, r: ActionResult): Promise<ActionResult> {
+    if (!/[^\x00-\x7f]/.test(content)) return r; // bez znaků mimo ASCII se kódování poznat nedá (a nezáleží na něm)
+    try {
+      const after = await this.host.fileEncoding(path);
+      if (after.encoding === before.encoding && after.bom === before.bom) return r;
+      const warn = `Warning: the encoding of ${path} changed from ${describeEncodingEn(before)} to ${describeEncodingEn(after)} while saving (the editor saved it with its own encoding). Check the file's diacritics; set VS Code "files.encoding" or "files.autoGuessEncoding" for this project if it is wrong.`;
+      this.host.log(`⚠ ${warn}`);
+      return { ...r, output: [r.output, warn].filter(Boolean).join("\n"), meta: { ...r.meta, encodingChanged: describeEncodingEn(after) } };
+    } catch {
+      return r;
+    }
   }
 
   private async edit(a: Action, turn: number, outcome: RunOutcome): Promise<ActionResult> {
@@ -234,11 +258,12 @@ export class ToolRunner {
       if (sec.error) return { tool: "edit", attrs: a.attrs, status: "error", output: sec.error };
       if (!(await this.approve(path, baseline, sec.content))) return { tool: "edit", attrs: a.attrs, status: "denied", output: "The user declined this change." };
       this.listener?.onWillChange(path, "modify", baseline, turn);
+      const enc = await this.host.fileEncoding(path);
       await this.host.writeFile(path, sec.content);
       this.markChanged(outcome, { path, kind: "modify", lines: sec.content.split("\n").length });
       const r = sec.replaced!;
       const what = mode === "replace" ? `Section "${r.heading}" (lines ${r.from}-${r.to}) replaced.` : `New section inserted ${mode} "${r.heading}" (now lines ${r.from}-${r.to}).`;
-      return { tool: "edit", attrs: a.attrs, status: "ok", output: what, meta: { section: r.heading, lines: `${r.from}-${r.to}` } };
+      return this.verifyEncoding(path, enc, sec.content, { tool: "edit", attrs: a.attrs, status: "ok", output: what, meta: { section: r.heading, lines: `${r.from}-${r.to}` } });
     }
     const hunks = parseHunks(a.body ?? "");
     const sectionHint = isDoc ? '\n\nTip: for a markdown document, <edit path="…" section="## Heading"> replaces the whole section without any SEARCH text.' : "";
@@ -249,11 +274,12 @@ export class ToolRunner {
     if (res.applied === 0) return { tool: "edit", attrs: a.attrs, status: "error", output: res.failures.map((f) => `Hunk ${f.hunk}: ${f.reason}`).join("\n\n") + sectionHint, meta };
     if (!(await this.approve(path, baseline, res.content))) return { tool: "edit", attrs: a.attrs, status: "denied", output: "The user declined this change.", meta };
     this.listener?.onWillChange(path, "modify", baseline, turn);
+    const enc = await this.host.fileEncoding(path);
     await this.host.writeFile(path, res.content);
     this.markChanged(outcome, { path, kind: "modify", lines: res.content.split("\n").length });
     const failText = res.failures.map((f) => `Hunk ${f.hunk} FAILED (others applied): ${f.reason}`).join("\n\n");
     const output = [failText, notes].filter(Boolean).join("\n\n");
-    return { tool: "edit", attrs: a.attrs, status: res.failures.length ? "error" : "ok", output: output || undefined, meta };
+    return this.verifyEncoding(path, enc, res.content, { tool: "edit", attrs: a.attrs, status: res.failures.length ? "error" : "ok", output: output || undefined, meta });
   }
 
   private async move(a: Action, turn: number, outcome: RunOutcome): Promise<ActionResult> {
@@ -315,6 +341,39 @@ export class ToolRunner {
       return "";
     }
   }
+}
+
+/** Tělo <write>, které není obsah souboru, ale odkaz („viz výše“, „beze změny“, „…“). */
+export function looksLikePlaceholder(body: string): boolean {
+  const t = body.trim();
+  if (!t) return true;
+  if (t.length > 240) return false;
+  if (/^(\.{3}|…|\/\/ ?\.{3}|# ?\.{3}|<!-- ?\.{3} ?-->)$/.test(t)) return true;
+  return /\b(viz|see|as|jak|jako)\s+(above|below|výše|níže|nahoře|dole|previous|earlier|chat)\b|\b(zkopíruj|copy|paste|vlož|použij|use)\b.*\b(above|výše|z chatu|from (the )?chat|z odpovědi)\b|\b(unchanged|beze změny|same as (before|above)|stejn[ýé] jako|no changes?|without changes?)\b|\[(celý|full|complete|whole)\s+(soubor|obsah|file|content)/i.test(
+    t,
+  );
+}
+
+/**
+ * Odmítne přepsání existujícího souboru zástupným textem nebo zlomkem původní délky (model napsal
+ * obsah do chatu mimo blok, nebo zapomněl zbytek). Vrací důvod a text pro model, nebo null.
+ */
+export function refuseWrite(body: string, baseline: string): { reason: string; text: string } | null {
+  if (looksLikePlaceholder(body)) {
+    return {
+      reason: "placeholder body",
+      text: `REFUSED: the body of this <write> looks like a placeholder (${JSON.stringify(body.trim().slice(0, 80))}), not the file content; writing it would wipe the file. The file was NOT changed. Send the COMPLETE file content inside <write>, or change parts of it with <edit> SEARCH/REPLACE hunks.`,
+    };
+  }
+  const b = baseline.trim().length;
+  const n = body.trim().length;
+  if (b >= 300 && n < b * 0.3) {
+    return {
+      reason: "content shrink",
+      text: `REFUSED: the new content (${n} chars) is much shorter than the existing file (${b} chars); overwriting would delete most of it. The file was NOT changed. Use <edit> hunks for partial changes, or resend <write path="…" force="true"> if the file really should shrink that much.`,
+    };
+  }
+  return null;
 }
 
 function ensureTrailingNewline(content: string, baseline: string): string {

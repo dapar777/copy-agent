@@ -59,19 +59,32 @@ export async function fileEncodingOf(uri: vscode.Uri): Promise<FileEncoding> {
   }
 }
 
-/** Obsah souboru; preferuje otevřený (možná neuložený) dokument; konce řádků LF. */
+function openDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  return vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+}
+
+/**
+ * Obsah souboru s LF. Z otevřeného dokumentu se bere jen text s NEULOŽENÝMI změnami (ty na disku
+ * nejsou); jinak se čtou bajty z disku a kódování se pozná z nich. Editor totiž může mít soubor
+ * otevřený v jiném kódování (výchozí UTF-8 u souboru ve windows-1250 ukáže nahrazovací znaky)
+ * a ten text by zkazil diakritiku modelu i následný zápis.
+ */
 export async function readText(uri: vscode.Uri): Promise<string> {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-  if (open) return toLf(open.getText());
+  const open = openDocument(uri);
+  if (open?.isDirty) return toLf(open.getText());
   const buf = Buffer.from(await vscode.workspace.fs.readFile(uri));
   return toLf(decodeBytes(buf, detectEncoding(buf, cfg<string>("files.fallbackEncoding", "windows-1250")).encoding));
 }
 
-/** Zápis; u existujícího souboru se zachová jeho kódování, BOM i konce řádků. */
+/**
+ * Zápis; u existujícího souboru se zachová jeho kódování, BOM i konce řádků. Jde přímo na disk
+ * v původním kódování (editor si otevřený neuložený dokument sám obnoví); jen dokument s neuloženými
+ * změnami se přepíše přes editor, aby se změny neztratily (uloží se pak v kódování editoru).
+ */
 export async function writeText(uri: vscode.Uri, text: string): Promise<void> {
   const enc = await fileEncodingOf(uri);
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-  if (open) {
+  const open = openDocument(uri);
+  if (open?.isDirty) {
     const edit = new vscode.WorkspaceEdit();
     const full = new vscode.Range(open.positionAt(0), open.positionAt(open.getText().length));
     edit.replace(uri, full, toLf(text));

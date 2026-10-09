@@ -103,7 +103,7 @@ export class Controller implements vscode.Disposable {
   async copyAgentInstructions(): Promise<void> {
     const text = buildAgentInstructions({ language: cfg("prompt.language", "cs"), replyMaxChars: cfg("reply.maxChars", 9000), bundleUsage: cfg<BundleUsage>("bundle.usage", "encourage"), reviewBeforeDone: cfg<ReviewMode>("review.beforeDone", "auto") });
     await vscode.env.clipboard.writeText(text);
-    this.pushItem({ kind: "status", text: `Instrukce pro agenta v Copilotu jsou ve schránce (${text.length} znaků z limitu 8 000). V Teams: Copilot → Agenti → Vytvořit agenta → Konfigurovat → Pokyny → vložit. Návod: copilot-agent/NAVOD.md.` });
+    this.pushItem({ kind: "system", text: `Instrukce pro agenta v Copilotu jsou ve schránce (${text.length} znaků z limitu 8 000). V Teams: Copilot → Agenti → Vytvořit agenta → Konfigurovat → Pokyny → vložit. Návod: copilot-agent/NAVOD.md.` });
     vscode.window.setStatusBarMessage(`$(clippy) Copy Agent: instrukce pro agenta ve schránce (${text.length} znaků)`, 6000);
   }
 
@@ -131,10 +131,10 @@ export class Controller implements vscode.Disposable {
           return;
         case "auto":
           await this.approvals.setMode(this.approvals.mode === "auto" ? "ask" : "auto");
-          this.pushItem({ kind: "status", text: `Schvalování příkazů: ${this.approvals.mode === "auto" ? "automaticky" : "ptát se"}` });
+          this.pushItem({ kind: "system", text: `Schvalování příkazů: ${this.approvals.mode === "auto" ? "automaticky" : "ptát se"}` });
           return;
         case "help":
-          this.pushItem({ kind: "status", text: HELP });
+          this.pushItem({ kind: "system", text: HELP });
           return;
         case "instructions":
           await this.copyAgentInstructions();
@@ -142,14 +142,14 @@ export class Controller implements vscode.Disposable {
         case "new":
           if (s && !["idle", "done"].includes(s.state)) this.abort();
           this.items = [];
-          this.pushItem({ kind: "status", text: "Panel vyčištěn. Napište nové zadání." });
+          this.pushItem({ kind: "system", text: "Panel vyčištěn. Napište nové zadání." });
           return;
         case "status":
-          this.pushItem({ kind: "status", text: this.describeStatus() });
+          this.pushItem({ kind: "system", text: this.describeStatus() });
           return;
         case "skills":
           this.pushItem({
-            kind: "status",
+            kind: "system",
             text: this.skills.length ? "Skilly:\n" + this.skills.map((k) => `/${k.name} – ${k.description}${k.builtin ? " [vestavěný]" : k.source?.startsWith(os.homedir()) ? " [uživatel]" : " [projekt]"}`).join("\n") : "Žádné skilly.",
           });
           return;
@@ -177,7 +177,7 @@ export class Controller implements vscode.Disposable {
       return;
     }
     if (!parsed.text && parsed.skills.length === 0) {
-      if (planMode) this.pushItem({ kind: "status", text: "Napište za /plan i zadání úkolu." });
+      if (planMode) this.pushItem({ kind: "system", text: "Napište za /plan i zadání úkolu." });
       return;
     }
     await this.start(composeTask(parsed), planMode, raw);
@@ -235,7 +235,7 @@ export class Controller implements vscode.Disposable {
     const engine = this.engine ?? this.newEngine();
     const events = (await this.transcript?.readAll()) ?? [];
     if (events.length === 0) {
-      this.pushItem({ kind: "status", text: "Zatím není žádný průběh k analýze (.copy-agent/transcript.jsonl je prázdný)." });
+      this.pushItem({ kind: "system", text: "Zatím není žádný průběh k analýze (.copy-agent/transcript.jsonl je prázdný)." });
       return;
     }
     let s = this.session.current;
@@ -243,7 +243,7 @@ export class Controller implements vscode.Disposable {
       s = this.session.start("/suggest");
       this.items = [];
     } else if (s.state !== "awaitingUser") {
-      this.pushItem({ kind: "status", text: "Návrhy jde spustit až po dokončení běžícího úkolu (nebo použijte /stop)." });
+      this.pushItem({ kind: "system", text: "Návrhy jde spustit až po dokončení běžícího úkolu (nebo použijte /stop)." });
       return;
     }
     this.pushItem({ kind: "task", text: "/suggest – návrhy z průběhu práce" });
@@ -263,7 +263,7 @@ export class Controller implements vscode.Disposable {
     if (approve) {
       try {
         await this.applySuggestion(sug);
-        this.pushItem({ kind: "status", text: `Návrh „${sug.title}“ použit (${sug.kind}).` });
+        this.pushItem({ kind: "system", text: `Návrh „${sug.title}“ použit (${sug.kind}).` });
       } catch (e) {
         sug.decision = undefined;
         this.pushItem({ kind: "error", text: `Návrh se nepodařilo použít: ${(e as Error).message}` });
@@ -331,7 +331,7 @@ export class Controller implements vscode.Disposable {
       }
       case "script": {
         const saved = saveScript(workspaceRoot().fsPath, sug.title, sug.body, { global, lang: sug.lang, file: sug.file });
-        this.pushItem({ kind: "status", text: `Skript uložen do ${saved.rel}. Spustíte ho příkazem: ${saved.command}` });
+        this.pushItem({ kind: "system", text: `Skript uložen do ${saved.rel}. Spustíte ho příkazem: ${saved.command}` });
         return;
       }
       case "instructions": {
@@ -461,28 +461,19 @@ export class Controller implements vscode.Disposable {
     const step = steps[index];
     if (!step) return;
     const total = steps.length;
-    const last = index === total - 1;
     if (step.kind === "text") {
       await this.clipboard.copyText(step.text, s.turn);
       this.session.update({ pendingStepIndex: index });
       this.setPromptPhase("fresh");
-      if (total > 1) {
-        const next = steps[index + 1];
-        const then = !next ? " Model teď odpoví na celý prompt." : next.kind === "files" ? " Po vložení se do schránky dají přílohy (nebo tlačítkem Další krok): vložte je stejným Ctrl+V a odešlete." : " Počkejte na „OK“; další část se zkopíruje sama po vložení (nebo tlačítkem).";
-        this.pushItem({ kind: "info", turn: s.turn, text: `Krok ${index + 1}/${total}: část ${step.part}/${step.total} textu promptu je ve schránce${auto ? " (předchozí krok byl vložen)" : ""}. Vložte ji do chatu.${then}`, data: { icon: "clipboard" } });
-      }
       this.notifyCopied(step.text.length, s.turn, "text", index, total);
       return;
     }
     const ok = await this.clipboard.copyFiles(step.files, step.promptFile ? s.pendingPrompt : undefined, s.turn);
     this.session.update({ pendingStepIndex: index });
     this.setPromptPhase(step.promptFile ? "fresh" : "sent");
-    const names = step.files.map((f) => f.split("/").pop()).join(", ");
-    if (ok) {
-      this.pushItem({ kind: "info", turn: s.turn, text: `Krok ${index + 1}/${total}: ${step.promptFile ? "prompt a přílohy jsou" : "příloha je"} ve schránce jako soubor (${names}). Ctrl+V v chatu ${step.promptFile ? "je připojí" : "ji připojí k vloženému textu"}; pak odešlete.${last ? "" : ""}`, data: { icon: "paperclip" } });
-    } else {
+    if (!ok) {
       if (delivery() === "history" || process.platform !== "win32") await this.clipboard.copyToHistory(step.files);
-      this.pushItem({ kind: "info", turn: s.turn, text: `Krok ${index + 1}/${total}: přílohu přiložte ručně (${step.files.join(", ")} v projektu)${this.clipboard.lastHistoryItems.length ? ", nebo ji vložte z historie schránky (Win+V)" : ""}; pak odešlete.`, data: { icon: "paperclip" } });
+      this.logLine(`Přílohu přiložte ručně: ${step.files.join(", ")}`);
     }
     this.notifyCopied(0, s.turn, "file", index, total);
     function delivery(): string {
@@ -508,7 +499,7 @@ export class Controller implements vscode.Disposable {
     const engine = this.engine ?? this.newEngine();
     const ctx = await engine.gatherContext(this.activeEditor(), this.skills.map((k) => ({ name: k.name, description: k.description })));
     const prompt = engine.resumePrompt(s, ctx);
-    this.pushItem({ kind: "status", text: "Kontext znovu odeslán (nový chat)." });
+    this.pushItem({ kind: "system", text: "Kontext znovu odeslán (nový chat)." });
     void this.loop(prompt);
   }
 
@@ -529,7 +520,7 @@ export class Controller implements vscode.Disposable {
     this.execAbort?.abort();
     this.session.clear();
     this.setPromptPhase(undefined);
-    this.pushItem({ kind: "status", text: "Úkol zrušen." });
+    this.pushItem({ kind: "system", text: "Úkol zrušen." });
     if (id) void this.transcript?.append({ session: id, kind: "error", text: "task aborted by user" });
   }
 
@@ -540,7 +531,7 @@ export class Controller implements vscode.Disposable {
       return;
     }
     this.execAbort.abort();
-    this.pushItem({ kind: "status", text: "Provádění přerušeno uživatelem; výsledky a vysvětlení jdou modelu." });
+    this.pushItem({ kind: "system", text: "Provádění přerušeno uživatelem; výsledky a vysvětlení jdou modelu." });
   }
 
   /** Ručně pošle opravný prompt (odpověď bez bloku nebyla otázka, ale chyba protokolu). */
@@ -548,7 +539,7 @@ export class Controller implements vscode.Disposable {
     const s = this.session.current;
     if (!s || s.state !== "waitingForReply") return;
     this.cancelWait();
-    this.pushItem({ kind: "status", text: "Posílám opravný prompt." });
+    this.pushItem({ kind: "system", text: "Posílám opravný prompt." });
     void this.loop(buildCorrectionPrompt(s.id, s.turn, ["The previous reply contained no <copy> block with actions."], { language: cfg("prompt.language", "cs") }));
   }
 
@@ -623,14 +614,14 @@ export class Controller implements vscode.Disposable {
         if (kind === "question" && cfg<boolean>("ask.direct", true) && (s.noBlockReplies ?? 0) < 1) {
           this.session.update({ noBlockReplies: (s.noBlockReplies ?? 0) + 1 });
           this.pushItem({ kind: "dialog", turn: s.turn, text: replyText.trim().slice(0, 1500), data: { from: "model", live: true } });
-          this.pushItem({ kind: "status", text: "Model odpověděl bez bloku akcí, nejspíš se ptá přímo v chatu. Odpovězte mu tam a zkopírujte jeho další odpověď. Pokud jde o chybu, použijte „Poslat opravný prompt“." });
+          this.pushItem({ kind: "system", text: "Model odpověděl bez bloku akcí, nejspíš se ptá přímo v chatu. Odpovězte mu tam a zkopírujte jeho další odpověď. Pokud jde o chybu, použijte „Poslat opravný prompt“." });
           copyMode = "none";
           continue;
         }
         if (parsed.part) this.pushItem({ kind: "info", turn: s.turn, text: `Přijata část ${parsed.part.index}/${parsed.part.total} odpovědi.`, data: { icon: "clipboard" } });
         if (parsed.truncated) this.pushItem({ kind: "info", turn: s.turn, text: "Odpověď je useknutá (chat ořezal délku). Hotové akce se provedou, o zbytek si agent řekne.", data: { icon: "alert" } });
         if (parsed.errors.length) this.pushItem({ kind: "error", turn: s.turn, text: parsed.errors.join("\n") });
-        if (parsed.notes.length) this.pushItem({ kind: "status", turn: s.turn, text: "Agent dorovnal: " + parsed.notes.join(" ") });
+        if (parsed.notes.length) this.pushItem({ kind: "system", turn: s.turn, text: "Agent dorovnal: " + parsed.notes.join(" ") });
         const isFinalPart = !parsed.part || parsed.part.index >= parsed.part.total;
         if (parsed.actions.length && isFinalPart) {
           this.session.update({ state: "executing" });

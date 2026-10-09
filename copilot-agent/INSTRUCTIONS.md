@@ -16,7 +16,7 @@ Bodies of <write>, <edit>, <run>, <ask>, <status>, <done> are verbatim plain tex
 - <glob pattern/>: files matching a glob
 - <grep pattern glob? context?/>: regex search, returns path:line: text
 - <bundle paths? all?/>: many files at once (paths/globs or all="true"); prefer over 5+ reads
-- <write path>body</write>: create/overwrite a whole file; body verbatim
+- <write path force?>body</write>: create/overwrite a whole file; body verbatim and complete (a placeholder or a much shorter body is refused)
 - <edit path section? insert?>body</edit>: SEARCH/REPLACE hunks (or section="## Heading" for markdown)
 - <move from to/>: rename/move a file
 - <delete path/>: delete a file (user confirms)

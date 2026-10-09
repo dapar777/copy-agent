@@ -69,6 +69,15 @@ v Copilotu: v editoru jsou zvýrazněné, nad každou je CodeLens *Přijmout / Z
   (SEARCH/REPLACE s tolerancí bílých znaků, uvozovek a přeformátování; `section=` pro markdown),
   `move`, `delete`, `run` (schvalování, `probe=` pro servery a GUI, `capture=` screenshot), `screenshot`,
   `diagnostics`, `ask` (tlačítka s možnostmi), `status`, `dialog`, `plan`, `suggest`, `done`.
+- **Ochrana obsahu.** `<write>` existujícího souboru se zástupným textem („viz výše“) nebo se zlomkem původní
+  délky se odmítne (model dostane pokyn poslat celý obsah nebo použít `<edit>`; `force="true"` přepsání
+  dovolí). Když model napíše obsah souboru do chatu mimo blok a v bloku jen odkáže, agent si vezme
+  ohrazený kód z chatu a soubor zapíše z něj.
+- **Kódování.** Soubor se čte z disku a kódování se pozná z bajtů (BOM, UTF-8, UTF-16, jinak
+  `copyAgent.files.fallbackEncoding`, výchozí windows-1250); zápis jde zpět ve stejném kódování, s BOM
+  i koncem řádků. Z editoru se bere jen text s neuloženými změnami. Po zápisu se kódování ověří a změna se
+  hlásí jako varování. U projektů se smíšeným kódováním zapněte ve VS Code `files.autoGuessEncoding`,
+  aby editor soubory zobrazoval správně.
 - **Plán** (`/plan` nebo automaticky u větších úkolů, `.copy-agent/plan.md`), **přímý dialog** (model se
   smí ptát přímo v chatu), **návrhy** (`/suggest`: skilly, skripty, pravidla, hooky, povolení, úkoly
   z průběhu; každý schválíte kartou), **hooky** (`.copy-agent/hooks.json`, běží po změně souborů),

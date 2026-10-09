@@ -23,7 +23,7 @@ import { toolBundle } from "../tools/bundle";
 import { collectAutoContext, renderAutoContext } from "../tools/context";
 import { collectDiagnosticsSettled } from "../tools/diagnostics";
 import { renderTree } from "../tools/fs";
-import { ChangeListener, PLAN_FILE, RunContext, RunOutcome, ToolRunner } from "../tools/runner";
+import { ChangeListener, looksLikePlaceholder, PLAN_FILE, RunContext, RunOutcome, ToolRunner } from "../tools/runner";
 import { SessionData, Suggestion, TurnRecord } from "./SessionData";
 
 /** Projektová pravidla chování agenta (jedno na řádek). */
@@ -251,21 +251,46 @@ export class TurnEngine {
     return classifyProse(body) === "document" ? body : null;
   }
 
-  /** „Dutý“ <write> (tělo jen odkazuje na dokument v chatu): tělo nahradíme dokumentem z chatu. */
+  /** Největší ohrazený blok kódu v textu mimo blok akcí (model ukázal obsah souboru v chatu). */
+  private static largestFencedCode(text: string): string | null {
+    let best: string | null = null;
+    for (const m of text.matchAll(/(`{3,}|~{3,})[\w.+-]*[ \t]*\n([\s\S]*?)\n\1[ \t]*(?:\n|$)/g)) {
+      const code = m[2];
+      if (/<\/?copy\b/.test(code)) continue; // to je ukázka protokolu, ne obsah souboru
+      if (!best || code.length > best.length) best = code;
+    }
+    return best;
+  }
+
+  /**
+   * „Dutý“ <write>: tělo jen odkazuje na obsah napsaný do chatu mimo blok („viz výše“). Dokumentu
+   * (.md/.txt) se dosadí dokument z chatu, jinému souboru největší ohrazený blok kódu z chatu.
+   * Bez náhrady se dutý zápis existujícího souboru stejně odmítne v runneru (ochrana obsahu).
+   */
   private static rescueHollowWrite(parsed: ParsedReply): { action: Action; replacement: Action; note: string } | null {
-    const write = parsed.actions.find((a) => a.tool === "write" && /\.(md|markdown|txt)$/i.test(String(a.attrs.path ?? "")));
-    if (!write) return null;
-    const body = (write.body ?? "").trim();
-    if (body.length >= 400 || classifyProse(body) === "document") return null;
-    const doc = TurnEngine.documentBody(parsed.outside);
-    if (!doc) return null;
-    const trimmed = trimChatter(doc);
-    const path = String(write.attrs.path);
-    return {
-      action: write,
-      replacement: { ...write, body: trimmed.body + "\n" },
-      note: `Format requirement: the document itself must be INSIDE <write path="${path}">…</write>; your <write> body had only ${body.split("\n").length} short line(s) while the document was written as chat text outside the block. This once the tool used your chat text as the file content. From now on write the document once, inside <write>.`,
-    };
+    for (const write of parsed.actions.filter((a) => a.tool === "write")) {
+      const body = (write.body ?? "").trim();
+      const path = String(write.attrs.path ?? "");
+      const isDoc = /\.(md|markdown|txt)$/i.test(path);
+      const hollow = looksLikePlaceholder(body) || (isDoc && body.length < 400 && classifyProse(body) !== "document");
+      if (!hollow) continue;
+      let replacement: string | null = null;
+      if (isDoc) {
+        const doc = TurnEngine.documentBody(parsed.outside);
+        if (doc) replacement = trimChatter(doc).body;
+      }
+      if (!replacement) {
+        const code = TurnEngine.largestFencedCode(parsed.outside);
+        if (code && code.trim().length > Math.max(100, body.length)) replacement = code;
+      }
+      if (!replacement) continue;
+      return {
+        action: write,
+        replacement: { ...write, body: replacement.replace(/\s+$/, "") + "\n" },
+        note: `Format requirement: the file content must be INSIDE <write path="${path}">…</write>; your <write> body was only ${JSON.stringify(body.slice(0, 60))} while the content was written in the chat outside the block, which the tool discards. This once the tool used that chat text as the file content (see the write result and check it). From now on put the complete content inside <write>, or change parts with <edit> hunks.`,
+      };
+    }
+    return null;
   }
 
   private static remarksOnly(actions: Action[]): boolean {
@@ -275,9 +300,12 @@ export class TurnEngine {
   /** Odpověď bez bloku (nebo jen s poznámkou) s dokumentem v chatu: zapíšeme ho sami, když známe cílovou cestu. */
   private async rescueDocument(session: SessionData, parsed: ParsedReply, source: "raw" | "outside"): Promise<{ action: Action; note: string } | null> {
     const text = source === "raw" ? parsed.raw : parsed.outside;
+    // odpověď, která se o blok pokusila (rozbitý, useknutý), patří do opravného kola, ne do záchrany
+    if (source === "raw" && /<\/?copy\b/.test(text)) return null;
     const fromWrite = text.match(/<write\b[^>]*\bpath\s*=\s*["']([^"']+)["']/)?.[1];
     const path = fromWrite ?? documentPathInTask(session.task);
-    if (!path) return null;
+    // záchrana jen pro markdown dokumenty: .txt ze zadání může být cokoli (vstupní data, log), ne výstup
+    if (!path || !/\.(md|markdown)$/i.test(path)) return null;
     const body = TurnEngine.documentBody(text);
     if (!body) return null;
     if (await this.host.exists(path)) return null;

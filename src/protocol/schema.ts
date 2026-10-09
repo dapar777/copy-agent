@@ -89,10 +89,13 @@ export const TOOLS: ToolDef[] = [
   {
     name: "write",
     hasBody: true,
-    attrs: [{ name: "path", required: true, doc: "workspace-relative path; parent dirs are created" }],
-    bodyDoc: "the complete new file content, verbatim: no HTML escaping, no <![CDATA[ ]]>, no code fence around the body",
+    attrs: [
+      { name: "path", required: true, doc: "workspace-relative path; parent dirs are created" },
+      { name: "force", required: false, doc: '"true" to allow overwriting an existing file with much shorter content (otherwise such a write is refused as a safety measure)' },
+    ],
+    bodyDoc: "the complete new file content, verbatim: no HTML escaping, no <![CDATA[ ]]>, no code fence around the body, never a placeholder like \"see above\"",
     doc: "Create or fully overwrite a file. Prefer <edit> for existing files.",
-    short: "create/overwrite a whole file; body verbatim",
+    short: "create/overwrite a whole file; body verbatim and complete (a placeholder or a much shorter body is refused)",
     example: '<write path="src/utils/email.ts">\nexport function isValidEmail(v: string) {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v);\n}\n</write>',
   },
   {

@@ -5,7 +5,7 @@ import { STATE_DIR } from "../protocol/roots";
 export interface TranscriptEvent {
   at: string;
   session: string;
-  kind: "task" | "prompt" | "reply" | "actions" | "results" | "status" | "approval" | "ask" | "answer" | "note" | "dialog" | "plan" | "suggestion" | "done" | "error" | "undo" | "info";
+  kind: "task" | "prompt" | "reply" | "actions" | "results" | "status" | "system" | "approval" | "ask" | "answer" | "note" | "dialog" | "plan" | "suggestion" | "done" | "error" | "undo" | "info";
   turn?: number;
   text?: string;
   data?: unknown;

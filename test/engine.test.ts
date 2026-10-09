@@ -137,3 +137,61 @@ describe("TurnEngine", () => {
     expect(final.kind).toBe("done");
   });
 });
+
+describe("content protection", () => {
+  let dir: string;
+  let engine: TurnEngine;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-guard-"));
+    fs.writeFileSync(path.join(dir, "pkg.bdy"), "CREATE OR REPLACE PACKAGE BODY pkg AS\n" + "  PROCEDURE p IS BEGIN NULL; END;\n".repeat(20) + "END pkg;\n");
+    fs.writeFileSync(path.join(dir, "notes.txt"), "input data\n");
+    engine = new TurnEngine(new NodeHost(dir, { autoConfirm: true, log: () => undefined }), { ...DEFAULT_OPTIONS, treeMaxEntries: 50, reviewBeforeDone: "off" });
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it("refuses to overwrite an existing file with a placeholder body", async () => {
+    const before = fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8");
+    const step = await engine.execute(createSession("task"), engine.parse('<copy turn="1">\n<write path="pkg.bdy">\n-- obsah viz výše\n</write>\n<done>ok</done>\n</copy>'), 100);
+    expect(step.kind).toBe("next");
+    expect(fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8")).toBe(before);
+    if (step.kind === "next") expect(step.prompt).toContain('refused="placeholder body"');
+  });
+
+  it("refuses a drastic shrink unless force=true", async () => {
+    const before = fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8");
+    const s = createSession("task");
+    const step = await engine.execute(s, engine.parse('<copy turn="1">\n<write path="pkg.bdy">\nCREATE OR REPLACE PACKAGE BODY pkg AS\nEND pkg;\n</write>\n</copy>'), 100);
+    expect(fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8")).toBe(before);
+    if (step.kind === "next") expect(step.prompt).toContain('refused="content shrink"');
+    await engine.execute(s, engine.parse('<copy turn="2">\n<write path="pkg.bdy" force="true">\nCREATE OR REPLACE PACKAGE BODY pkg AS\nEND pkg;\n</write>\n</copy>'), 100);
+    expect(fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8")).toBe("CREATE OR REPLACE PACKAGE BODY pkg AS\nEND pkg;\n");
+  });
+
+  it("uses the fenced code written in the chat when the write body is hollow", async () => {
+    const code = "CREATE OR REPLACE PACKAGE BODY pkg AS\n" + "  PROCEDURE p IS BEGIN DBMS_OUTPUT.PUT_LINE('x'); END;\n".repeat(20) + "END pkg;";
+    const reply = "Tady je upravený soubor:\n\n```sql\n" + code + "\n```\n\n````\n<copy turn=\"1\">\n<write path=\"pkg.bdy\">\n(kód viz výše)\n</write>\n<done>ok</done>\n</copy>\n````";
+    const step = await engine.execute(createSession("task"), engine.parse(reply), 100);
+    expect(fs.readFileSync(path.join(dir, "pkg.bdy"), "utf8")).toBe(code + "\n");
+    if (step.kind === "next") expect(step.prompt).toContain("the tool used that chat text as the file content");
+  });
+
+  it("does not create a .txt from chat prose and never touches a .txt named in the task", async () => {
+    const session = createSession("Uprav pkg.bdy podle notes.txt a výsledek zapiš do out.txt");
+    const prose = "# Postup\n\n- krok 1\n- krok 2\n- krok 3\n\n" + "popis ".repeat(120);
+    const step = await engine.execute(session, engine.parse(prose), 100);
+    expect(step.kind).toBe("correction");
+    expect(fs.existsSync(path.join(dir, "out.txt"))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, "notes.txt"), "utf8")).toBe("input data\n");
+  });
+
+  it("keeps windows-1250 encoding of an edited file", async () => {
+    const { encodeText } = await import("../src/tools/encoding");
+    fs.writeFileSync(path.join(dir, "cz.bdy"), encodeText("-- Příliš žluťoučký kůň\r\nSELECT 1 FROM dual;\r\n", { encoding: "windows-1250", bom: false, eol: "crlf" }));
+    const step = await engine.execute(createSession("task"), engine.parse('<copy turn="1">\n<edit path="cz.bdy">\n<<<<<<< SEARCH\nSELECT 1 FROM dual;\n=======\nSELECT 2 FROM dual; -- úprava\n>>>>>>> REPLACE\n</edit>\n</copy>'), 100);
+    const buf = fs.readFileSync(path.join(dir, "cz.bdy"));
+    const { detectEncoding, decodeBytes } = await import("../src/tools/encoding");
+    expect(detectEncoding(buf)).toEqual({ encoding: "windows-1250", bom: false, eol: "crlf" });
+    expect(decodeBytes(buf, "windows-1250")).toBe("-- Příliš žluťoučký kůň\r\nSELECT 2 FROM dual; -- úprava\r\n");
+    if (step.kind === "next") expect(step.prompt).not.toContain("encodingChanged");
+  });
+});
