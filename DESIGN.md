@@ -79,6 +79,10 @@ Stejně jako whisper: allowlist/denylist a schvalování příkazů v panelu, ch
 před každým kolem a Undo, změny ke schválení po hunkách, výstupy příkazů čištěné od tajemství,
 kontrola zapsaných souborů (zbytky protokolu, syntaxe).
 
+Agent nevytváří pomocné soubory mimo `.copy-agent/` ve workspace (ani v systémovém Temp: dočasný text
+pro detekci vložení žije v `.copy-agent/tmp`). Při startu úkolu `safety/VcsIgnore.ts` doplní `.copy-agent/`
+a `AGENTS.md` do `.gitignore` a do `svn:ignore` každé složky pod správou verzí.
+
 ## 7. Architektura
 
 ```

@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import * as path from "path";
 import * as vscode from "vscode";
 import { classifyProse, isOwnPrompt, looksLikeReply, looksLikeTruncatedReply, normalizeClipboard } from "../protocol/detect";
 export { setClipboardFiles };
@@ -33,7 +34,13 @@ export class ClipboardBridge implements vscode.Disposable {
   private lastPrompt = "";
   private readonly otherEmitter = new vscode.EventEmitter<void>();
   readonly onDidCopyOther = this.otherEmitter.event;
-  private readonly owner = new ClipboardOwner();
+  private readonly owner = new ClipboardOwner(() => {
+    try {
+      return path.join(workspaceRoot().fsPath, STATE_DIR, "tmp");
+    } catch {
+      return undefined; // bez workspace zůstane systémový Temp
+    }
+  });
   private readonly pasteEmitter = new vscode.EventEmitter<void>();
   readonly onDidPaste = this.pasteEmitter.event;
   private pastedSincePrompt = false;

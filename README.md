@@ -78,6 +78,11 @@ v Copilotu: v editoru jsou zvýrazněné, nad každou je CodeLens *Přijmout / Z
   i koncem řádků. Z editoru se bere jen text s neuloženými změnami. Po zápisu se kódování ověří a změna se
   hlásí jako varování. U projektů se smíšeným kódováním zapněte ve VS Code `files.autoGuessEncoding`,
   aby editor soubory zobrazoval správně.
+- **Nic mimo `.copy-agent/`.** Všechny pomocné soubory (stav sezení, záznam průběhu, plán, svazky,
+  výstupy příkazů, snímky, dočasný text pro schránku) jsou jen ve složce `.copy-agent/` workspace
+  (globální skilly a pravidla v `~/.copy-agent/`). Při startu úkolu se `.copy-agent/` a `AGENTS.md`
+  automaticky doplní do `.gitignore` a do `svn:ignore` každé složky pod gitem či Subversion
+  (`copyAgent.vcs.autoIgnore`).
 - **Plán** (`/plan` nebo automaticky u větších úkolů, `.copy-agent/plan.md`), **přímý dialog** (model se
   smí ptát přímo v chatu), **návrhy** (`/suggest`: skilly, skripty, pravidla, hooky, povolení, úkoly
   z průběhu; každý schválíte kartou), **hooky** (`.copy-agent/hooks.json`, běží po změně souborů),

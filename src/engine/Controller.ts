@@ -12,12 +12,13 @@ import { decodeEntities } from "../protocol/text";
 import { ReviewManager } from "../review/ReviewManager";
 import { ApprovalService } from "../safety/Approvals";
 import { Checkpoint } from "../safety/Checkpoint";
+import { ensureVcsIgnore } from "../safety/VcsIgnore";
 import { addGlobalHook, appendAgentFeedback, appendGlobalInstructions, appendGlobalRule, readGlobalHooks, readGlobalInstructions, readGlobalRules, replaceGlobalHook, replaceGlobalRule } from "../skills/GlobalConfig";
 import { addHook, loadHooks, loadProjectHooks, saveProjectHooks } from "../skills/Hooks";
 import { loadSkills, saveScript, saveSkill } from "../skills/Skills";
 import { renderRefs, resolveRefs } from "../tools/refs";
 import { ChangeListener, PLAN_FILE } from "../tools/runner";
-import { cfg, CONFIG, kb, resolveInWorkspace, tryToRel, workspaceRoot } from "../util";
+import { cfg, CONFIG, kb, resolveInWorkspace, tryToRel, workspaceFolders, workspaceRoot } from "../util";
 import { Session } from "./Session";
 import { Suggestion } from "./SessionData";
 import { describeActions, describeResults, Transcript, TranscriptEvent } from "./Transcript";
@@ -217,6 +218,7 @@ export class Controller implements vscode.Disposable {
     this.pushItem({ kind: "task", text: original ?? task, data: { planMode } });
     this.logLine(`▶ Nový úkol${planMode ? " (PLAN)" : ""}: ${task.split("\n")[0]}`);
     const engine = this.newEngine();
+    await this.ensureVcsIgnore();
     await engine.archivePlan(previous);
     await this.transcript?.append({ session: s.id, kind: "task", text: task, data: { planMode } });
     const refs = await resolveRefs(engine.host, original ?? task, this.activeEditor());
@@ -543,11 +545,26 @@ export class Controller implements vscode.Disposable {
     void this.loop(buildCorrectionPrompt(s.id, s.turn, ["The previous reply contained no <copy> block with actions."], { language: cfg("prompt.language", "cs") }));
   }
 
+  /**
+   * Pomocné soubory agenta (.copy-agent/) a AGENTS.md nepatří do správy verzí: doplní je do .gitignore
+   * a svn:ignore každé složky workspace pod gitem/SVN (copyAgent.vcs.autoIgnore). Nikdy nevyhazuje.
+   */
+  private async ensureVcsIgnore(): Promise<void> {
+    if (!cfg<boolean>("vcs.autoIgnore", true)) return;
+    try {
+      const notes = await ensureVcsIgnore(workspaceFolders().map((f) => f.fsPath), { log: (l) => this.logLine(l) });
+      for (const n of notes) this.pushItem({ kind: "system", text: n });
+    } catch (e) {
+      this.logLine(`ignore ve správě verzí: ${(e as Error).message}`);
+    }
+  }
+
   /** Po restartu VS Code naváže na uložené sezení. */
   async resume(): Promise<void> {
     const s = await this.session.restore();
     if (!s) return;
     this.newEngine();
+    await this.ensureVcsIgnore();
     const events = (await this.transcript?.readAll()) ?? [];
     this.items = events.filter((e) => e.session === s.id && e.kind !== "prompt");
     this.logLine(`↻ Obnoveno sezení ${s.id}, kolo ${s.turn}, stav ${s.state}.`);

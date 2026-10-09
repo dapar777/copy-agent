@@ -402,6 +402,11 @@
           "default": true,
           "description": "Před každým kolem uložit git checkpoint pro Undo."
         },
+        "copyAgent.vcs.autoIgnore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Při startu úkolu automaticky přidat .copy-agent/ a AGENTS.md do .gitignore (git) a do svn:ignore (Subversion) každé složky workspace pod správou verzí. Agent jinam žádné pomocné soubory nevytváří."
+        },
         "copyAgent.plan.auto": {
           "type": "boolean",
           "default": true,

@@ -19,6 +19,12 @@ export class ClipboardOwner implements vscode.Disposable {
   readonly onDidLose = this.loseEmitter.event;
   private static readonly GRACE_MS = 800;
 
+  /**
+   * @param tempDir složka pro dočasný soubor s textem (ve workspace .copy-agent/tmp, aby agent nic
+   * nevytvářel mimo svou složku); bez workspace systémový Temp.
+   */
+  constructor(private readonly tempDir: () => string | undefined = () => undefined) {}
+
   get alive(): boolean {
     return !!this.proc && this.proc.exitCode === null;
   }
@@ -27,7 +33,13 @@ export class ClipboardOwner implements vscode.Disposable {
   async take(text: string): Promise<boolean> {
     if (process.platform !== "win32") return false;
     await this.release();
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-clip-"));
+    let base = this.tempDir();
+    try {
+      if (base) fs.mkdirSync(base, { recursive: true });
+    } catch {
+      base = undefined;
+    }
+    const dir = fs.mkdtempSync(path.join(base ?? os.tmpdir(), "clip-"));
     const textFile = path.join(dir, "prompt.txt");
     this.stopFile = path.join(dir, "stop");
     fs.writeFileSync(textFile, text, "utf8");
