@@ -6,7 +6,7 @@
   "publisher": "dapar",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other",
@@ -18,7 +18,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "copyAgent",
           "title": "Copy Agent",

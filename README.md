@@ -16,7 +16,7 @@ postavený znovu kolem Copilota v Teams; co se liší, je v [DESIGN.md](DESIGN.m
 ## Instalace
 
 1. Stáhněte `copy-agent-0.1.0.vsix` a `install.bat` do jedné složky (nebo naklonujte repo).
-2. Poklepejte na `install.bat`. Skript najde VS Code, nainstaluje balíček a ověří, že je vidět.
+2. Poklepejte na `install.bat`. Skript najde VS Code (potřeba 1.106 nebo novější kvůli panelu v pravém postranním panelu), nainstaluje balíček a ověří, že je vidět.
 3. Restartujte VS Code (nebo `Developer: Reload Window`).
 
 Ručně: `code --install-extension copy-agent-0.1.0.vsix --force`, nebo Extensions › „…“ › *Install from VSIX…*.
@@ -27,7 +27,7 @@ pro něj dostanete do schránky příkazem **Copy Agent: Zkopírovat instrukce p
 
 ## Jak to funguje
 
-1. V panelu Copy Agent (ikona ve svislé liště) napište úkol a odešlete Enterem (nebo `Ctrl+Alt+C`).
+1. V panelu Copy Agent (pravý postranní panel, přepíná se v jeho záhlaví vedle Copilot Chatu) napište úkol a odešlete Enterem (nebo `Ctrl+Alt+C`).
    Lomítko `/` nabídne příkazy a skilly, `#` odkazy na soubory.
 2. Prompt je ve schránce: v chatu s agentem `Ctrl+V`. Panel vede krok za krokem:
    - delší prompt jde po částech `[PART i/n]` (model na části odpoví „OK“); po vložení se další část

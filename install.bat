@@ -74,7 +74,7 @@ if defined FOUND (
 )
 echo.
 echo  Co dal: restartujte VS Code ^(nebo Ctrl+Shift+P ^> "Developer: Reload Window"^).
-echo  Panel Copy Agent je ve svisle liste; novy ukol: Ctrl+Alt+C.
+echo  Panel Copy Agent je v pravem postrannim panelu ^(prepina se v zahlavi vedle Copilot Chatu^); novy ukol: Ctrl+Alt+C.
 echo  Agenta v Copilotu ^(Teams^) zalozte podle copilot-agent\NAVOD.md; instrukce pro nej da do schranky
 echo  prikaz "Copy Agent: Zkopirovat instrukce pro agenta v Copilotu".
 echo.
