@@ -31,6 +31,8 @@ export class ReviewManager implements vscode.Disposable {
   private readonly notes: string[] = [];
   private readonly disposables: vscode.Disposable[] = [];
   private readonly codeLensEmitter = new vscode.EventEmitter<void>();
+  /** změna původního znění (baseline) souboru: otevřený diff si levou stranu obnoví */
+  private readonly origEmitter = new vscode.EventEmitter<vscode.Uri>();
   private readonly diffCache = new Map<string, { baseline: string; live: string; hunks: DiffHunk[] }>();
 
   private readonly addedDeco = vscode.window.createTextEditorDecorationType({
@@ -52,6 +54,7 @@ export class ReviewManager implements vscode.Disposable {
   constructor() {
     this.disposables.push(
       vscode.workspace.registerTextDocumentContentProvider(ORIG_SCHEME, {
+        onDidChange: this.origEmitter.event,
         provideTextDocumentContent: (uri) => this.changes.get(uri.path.replace(/^\//, ""))?.baseline ?? "",
       }),
       vscode.languages.registerCodeLensProvider({ scheme: "file" }, { onDidChangeCodeLenses: this.codeLensEmitter.event, provideCodeLenses: (doc) => this.provideCodeLenses(doc) }),
@@ -175,11 +178,12 @@ export class ReviewManager implements vscode.Disposable {
   async openDiff(path: string): Promise<void> {
     const c = this.changes.get(path);
     if (!c || c.kind === "delete") return;
-    const orig = vscode.Uri.from({ scheme: ORIG_SCHEME, path: "/" + path });
-    // živá strana diffu se musí otevřít v kódování souboru (windows-1250…), jinak diff ukáže falešné změny v diakritice
+    const orig = ReviewManager.origUri(path);
+    // živá strana diffu se musí otevřít v kódování souboru (windows-1250…), jinak diff ukáže falešné změny v diakritice;
+    // živý soubor se pak s každým dalším zápisem agenta obnoví sám, levou stranu obnovuje origEmitter
     const live = resolveInWorkspace(path);
     await openDocumentWithEncoding(live);
-    await vscode.commands.executeCommand("vscode.diff", orig, live, `${path} (před ↔ po)`);
+    await vscode.commands.executeCommand("vscode.diff", orig, live, `${path} (před ↔ po)`, { preview: false });
   }
 
   async goToNext(after?: { path: string; index: number }): Promise<boolean> {
@@ -258,14 +262,22 @@ export class ReviewManager implements vscode.Disposable {
     }
   }
 
+  private static origUri(path: string): vscode.Uri {
+    return vscode.Uri.from({ scheme: ORIG_SCHEME, path: "/" + path });
+  }
+
   private fire(): void {
     this.emitter.fire();
     this.codeLensEmitter.fire();
+    // levá strana otevřených diffů (původní znění) se obnoví: po přijetí hunku, po další změně v dalším kole
+    for (const p of this.changes.keys()) this.origEmitter.fire(ReviewManager.origUri(p));
     void this.refreshDecorations();
   }
 
   dispose(): void {
     this.disposables.forEach((d) => d.dispose());
+    this.origEmitter.dispose();
+    this.codeLensEmitter.dispose();
     this.addedDeco.dispose();
     this.removedDeco.dispose();
   }
