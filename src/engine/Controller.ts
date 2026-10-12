@@ -18,7 +18,7 @@ import { addHook, loadHooks, loadProjectHooks, saveProjectHooks } from "../skill
 import { loadSkills, saveScript, saveSkill } from "../skills/Skills";
 import { renderRefs, resolveRefs } from "../tools/refs";
 import { ChangeListener, PLAN_FILE } from "../tools/runner";
-import { cfg, CONFIG, kb, resolveInWorkspace, tryToRel, workspaceFolders, workspaceRoot } from "../util";
+import { cfg, CONFIG, kb, openDocumentWithEncoding, resolveInWorkspace, tryToRel, workspaceFolders, workspaceRoot } from "../util";
 import { Session } from "./Session";
 import { Suggestion } from "./SessionData";
 import { describeActions, describeResults, Transcript, TranscriptEvent } from "./Transcript";
@@ -801,7 +801,7 @@ export class Controller implements vscode.Disposable {
   async openFileAt(rel: string, line?: number, col?: number): Promise<void> {
     if (!rel) return;
     try {
-      const doc = await vscode.workspace.openTextDocument(resolveInWorkspace(rel));
+      const doc = await openDocumentWithEncoding(resolveInWorkspace(rel));
       const editor = await vscode.window.showTextDocument(doc, { preview: true });
       if (line && line > 0) {
         const pos = new vscode.Position(Math.min(line - 1, doc.lineCount - 1), Math.max(0, (col ?? 1) - 1));

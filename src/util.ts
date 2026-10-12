@@ -94,6 +94,39 @@ export async function writeText(uri: vscode.Uri, text: string): Promise<void> {
   }
   await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(uri.fsPath)));
   await vscode.workspace.fs.writeFile(uri, encodeText(applyEol(text, enc.eol), enc));
+  // otevřený (neupravený) dokument si editor obnoví z disku; když ho má v jiném kódování než soubor,
+  // přeotevře se ve správném, aby diakritika v editoru i v diffu seděla
+  const want = vscodeEncodingId(enc);
+  if (open && want && open.encoding !== want) {
+    try {
+      await vscode.workspace.openTextDocument(uri, { encoding: want });
+    } catch {
+      /* dokument mezitím změněn: zůstane, jak je */
+    }
+  }
+}
+
+/** Náš název kódování → identifikátor VS Code (TextDocument.encoding); undefined = nechat na editoru. */
+export function vscodeEncodingId(enc: FileEncoding): string | undefined {
+  const name = normalizeEncoding(enc.encoding);
+  if (name === "utf8") return enc.bom ? "utf8bom" : "utf8";
+  const map: Record<string, string> = { "utf-16le": "utf16le", "utf-16be": "utf16be", "windows-1250": "windows1250", "windows-1252": "windows1252", "iso-8859-2": "iso88592" };
+  return map[name];
+}
+
+/**
+ * Otevře dokument v kódování zjištěném z bajtů souboru (ne ve výchozím kódování editoru): soubor ve
+ * windows-1250 by se jinak zobrazil s rozbitou diakritikou a diff by ukázal samé falešné změny.
+ * Dokument s neuloženými změnami v jiném kódování VS Code přeotevřít odmítne; pak zůstane, jak je.
+ */
+export async function openDocumentWithEncoding(uri: vscode.Uri): Promise<vscode.TextDocument> {
+  try {
+    const encoding = vscodeEncodingId(await fileEncodingOf(uri));
+    if (encoding) return await vscode.workspace.openTextDocument(uri, { encoding });
+  } catch {
+    /* neuložené změny v jiném kódování, nebo kódování editor nezná */
+  }
+  return vscode.workspace.openTextDocument(uri);
 }
 
 export function kb(s: string | number): string {

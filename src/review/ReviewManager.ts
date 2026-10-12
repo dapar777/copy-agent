@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { DiffHunk, diffLines } from "../protocol/diff";
-import { fileExists, readText, resolveInWorkspace, tryToRel, writeText } from "../util";
+import { fileExists, openDocumentWithEncoding, readText, resolveInWorkspace, tryToRel, writeText } from "../util";
 
 /**
  * Review změn po vzoru Copilotu: soubor na disku už změnu obsahuje, manažer drží „baseline“
@@ -176,7 +176,10 @@ export class ReviewManager implements vscode.Disposable {
     const c = this.changes.get(path);
     if (!c || c.kind === "delete") return;
     const orig = vscode.Uri.from({ scheme: ORIG_SCHEME, path: "/" + path });
-    await vscode.commands.executeCommand("vscode.diff", orig, resolveInWorkspace(path), `${path} (před ↔ po)`);
+    // živá strana diffu se musí otevřít v kódování souboru (windows-1250…), jinak diff ukáže falešné změny v diakritice
+    const live = resolveInWorkspace(path);
+    await openDocumentWithEncoding(live);
+    await vscode.commands.executeCommand("vscode.diff", orig, live, `${path} (před ↔ po)`);
   }
 
   async goToNext(after?: { path: string; index: number }): Promise<boolean> {
@@ -194,7 +197,7 @@ export class ReviewManager implements vscode.Disposable {
       else if (pick) await this.reject(c.path);
       return true;
     }
-    const doc = await vscode.workspace.openTextDocument(resolveInWorkspace(next.path));
+    const doc = await openDocumentWithEncoding(resolveInWorkspace(next.path));
     const editor = await vscode.window.showTextDocument(doc, { preserveFocus: false });
     const range = this.rangeFor(doc, next.hunk);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenter);

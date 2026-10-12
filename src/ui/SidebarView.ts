@@ -400,7 +400,7 @@ export class SidebarView implements vscode.WebviewViewProvider {
     }
     return '<ul class="check">' + items.join("") + "</ul>";
   }
-  const STATE = { waitingForReply: ["waiting", "Čekám na odpověď modelu", ""], executing: ["executing", "Provádím akce", "Čtu soubory, zapisuji změny, spouštím příkazy…"], awaitingUser: ["asking", "Model se ptá", "Odpovězte do pole níže."], composing: ["executing", "Sestavuji prompt", ""], done: ["done", "Úkol dokončen", "Zadejte další úkol, nebo /suggest pro návrhy z průběhu."] };
+  const STATE = { waitingForReply: ["waiting", "Čekám na odpověď modelu", ""], executing: ["executing", "Provádím akce", "Čtu soubory, zapisuji změny, spouštím příkazy…"], awaitingUser: ["asking", "Model se ptá", "Odpovězte do pole níže."], composing: ["executing", "Sestavuji prompt", "Balím codebase a kontext projektu…"], done: ["done", "Úkol dokončen", "Zadejte další úkol, nebo /suggest pro návrhy z průběhu."] };
 
   // přírůstkové vykreslení proudu: položky se jen připojují; klíč = pořadí + čas
   let renderedKeys = [];
@@ -451,7 +451,11 @@ export class SidebarView implements vscode.WebviewViewProvider {
         if (s.replyParts) text += " Přijato " + s.replyParts + " částí odpovědi, čekám na další.";
         const att = s.attachments || [];
         $("bannerSub").innerHTML = esc(text) + (att.length && cur.kind !== "files" ? '<div class="att">' + ic("paperclip") + " příloha: " + att.map((a) => '<span class="ref">' + esc(a.name) + "</span> (" + kb(a.chars) + ")").join(", ") + (s.historyItems && s.historyItems.length ? ' <span class="sub">(vložte z historie schránky Win+V)</span>' : steps.some((st) => st.kind === "files") ? ' <span class="sub">(dá se do schránky v dalším kroku)</span>' : ' <span class="sub">(přiložte ručně z .copy-agent/out/)</span>') + "</div>" : "");
-      } else $("bannerSub").textContent = sub;
+      } else {
+        // nadpis i podtitul se mění s každým stavem (sestavuji prompt, provádím akce, model se ptá, hotovo)
+        $("bannerTitle").textContent = title + (s.state === "done" ? "" : " · kolo " + s.turn);
+        $("bannerSub").textContent = sub;
+      }
       const b = $("bannerBtns"); b.innerHTML = "";
       if (s.state === "waitingForReply") {
         b.innerHTML = (multi && !lastStep ? '<button class="primary small" data-act="nextPart">' + ic("copy") + ' Další krok</button>' : "") + '<button class="' + (multi && !lastStep ? "" : "primary ") + 'small" data-act="copyAgain">' + ic("copy") + ' Zkopírovat znovu</button><button class="small" data-act="showPrompt">Zobrazit prompt</button><button class="small" data-act="pasteClip">Vzít odpověď ze schránky</button><button class="small" data-act="resend" title="Pro nový chat">↻ Poslat celý kontext znovu</button><button class="ghost small" data-act="correction" title="Když model odpověděl bez bloku akcí a nebyla to otázka">Poslat opravný prompt</button>';
