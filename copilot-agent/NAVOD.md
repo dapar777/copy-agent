@@ -40,7 +40,7 @@ promptu, prompty jsou delší).
 
 1. Ve VS Code v panelu Copy Agent napište zadání a odešlete.
 2. Rozšíření sestaví prompt a dá ho do schránky; v chatu s agentem stiskněte **Ctrl+V**.
-   - Když je prompt delší než limit chatu (`copyAgent.prompt.maxChars`, výchozí 8 000), jde po částech
+   - Když je prompt delší než limit chatu (`copyAgent.prompt.maxChars`, výchozí 80 000, takže zřídka), jde po částech
      `[PART i/n]`: na každou část agent odpoví „OK“, po vložení se další část zkopíruje sama (nebo
      tlačítkem *Další krok*, `Ctrl+Alt+N`).
    - Po vložení textu se do schránky dá **soubor s celou codebase** (`bundle-1-0-….txt`): stejným Ctrl+V
@@ -59,7 +59,7 @@ Pro nový úkol založte nový chat (tlačítko *Nový chat*), rozšíření po�
 |---|---|
 | Délka jedné zprávy (podle tenantu 4 000–16 000 znaků) | prompt se dělí na části `[PART i/n]`; nastavte `copyAgent.prompt.maxChars` podle toho, co váš chat přijme |
 | Délka odpovědi (ořez, typicky 1 024–4 096 tokenů) | agent má držet odpověď pod `copyAgent.reply.maxChars` a dělit ji na `part="1/2"`; useknutou akci rozšíření nikdy nevykoná a řekne si o ni znovu |
-| Velké přílohy čte Copilot po částech (vyhledáváním), ne celé | agent ví, že příloha může být neúplná, a chybějící soubory si vyžádá `<read>`; limit velikosti přílohy nastavíte v `copyAgent.context.fullMaxChars` |
+| Velké přílohy čte Copilot po částech (vyhledáváním), ne celé | agent ví, že příloha může být neúplná, a chybějící soubory si vyžádá `<read>`; přílohu lze vypnout zaškrtávátkem „celá codebase“ v panelu nebo nastavením `copyAgent.context.fullBundle` |
 | Renderování `<tagů>` v chatu | blok je vždy v ohrazení kódu (čtyři zpětné apostrofy), takže Teams nic neskryje a tlačítko Kopírovat dá přesný text; escapované značky parser dekóduje |
 | Copilot někdy odmítne „roli agenta“ | instrukce ho popisují jako autora textu, který uživatel vkládá do programu; žádný přístup k souborům po něm nechtějí |
 

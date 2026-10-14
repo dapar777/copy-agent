@@ -72,9 +72,8 @@ export interface EngineOptions extends PromptOptions {
   autoContextMaxChars?: number;
   /** svazky jdou do promptu jako text (inline), ne jako příloha */
   bundleInline?: boolean;
-  /** celá codebase jako příloha úvodního promptu: auto (do fullMaxChars), always, off */
-  fullContext?: "auto" | "always" | "off";
-  fullMaxChars?: number;
+  /** celá codebase jako příloha úvodního promptu (bez limitu velikosti); výchozí ano */
+  fullContext?: boolean;
 }
 
 export interface InitialBundle {
@@ -178,23 +177,16 @@ export class TurnEngine {
   }
 
   /**
-   * Celá codebase jako jeden soubor .txt k úvodnímu promptu (nejméně kol: model má vše hned).
-   * V režimu auto jen do fullMaxChars; při překročení se použije automatický kontext a vrátí se
-   * důvod. Doplní ctx.initialBundle a vrátí cestu přílohy (nebo undefined).
+   * Celá codebase jako jeden soubor .txt k úvodnímu promptu (nejméně kol: model má vše hned), bez
+   * limitu velikosti (vynechají se jen binární a ignorované soubory). `enabled` přebíjí nastavení
+   * (zaškrtávátko v panelu). Doplní ctx.initialBundle a vrátí cestu přílohy, nebo důvod, proč není.
    */
-  async attachInitialBundle(ctx: ProjectContext, turn: number): Promise<{ file?: string; info?: InitialBundle; reason?: string }> {
-    const mode = this.opts.fullContext ?? "auto";
-    if (mode === "off") return {};
-    const limit = mode === "always" ? Infinity : this.opts.fullMaxChars ?? 800_000;
-    const b = await toolBundle(this.host, { all: "true" }, turn, 0, { format: "compact", maxChars: limit, inline: false, maxFileChars: mode === "always" ? undefined : 200_000 });
+  async attachInitialBundle(ctx: ProjectContext, turn: number, enabled?: boolean): Promise<{ file?: string; info?: InitialBundle; reason?: string }> {
+    if (!(enabled ?? this.opts.fullContext ?? true)) return { reason: "disabled" };
+    const b = await toolBundle(this.host, { all: "true" }, turn, 0, { format: "compact", inline: false });
     if (b.status !== "ok" || !b.attachments?.length) return { reason: (b.output ?? "").split("\n")[0] };
     const output = b.output ?? "";
     const skipped = (output.match(/^Skipped:\n((?:  .*\n?)+)/m)?.[1] ?? "").split("\n").filter((l) => l.trim()).length;
-    const overLimit = /bundle limit \d+ chars reached/.test(output);
-    if (overLimit && mode === "auto") {
-      await this.host.deleteFile(String(b.meta?.file ?? b.attachments[0]));
-      return { reason: `codebase is larger than ${limit} chars; using auto-selected files instead` };
-    }
     const info: InitialBundle = { file: String(b.meta?.file ?? b.attachments[0]), files: Number(b.meta?.files ?? 0), chars: Number(b.meta?.chars ?? 0), skipped };
     ctx.initialBundle = info;
     // s celou codebase v příloze je automatický výběr souborů zbytečný (a jen zvětšuje prompt)

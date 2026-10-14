@@ -76,7 +76,7 @@ async function main(): Promise<void> {
       await engine.archivePlan(previous);
       const ctx = await engine.gatherContext(undefined, skills.map((k) => ({ name: k.name, description: k.description })), task);
       // celá codebase jako příloha (jako v extensionu); --no-full ji vynechá
-      const bundle = rest.includes("--no-full") ? {} : await engine.attachInitialBundle(ctx, s.turn);
+      const bundle = await engine.attachInitialBundle(ctx, s.turn, !rest.includes("--no-full"));
       if (bundle.reason) console.log(`! codebase not attached: ${bundle.reason}`);
       await emit(s, engine.initialPrompt(s, ctx), bundle.file ? [bundle.file] : []);
       await transcript.append({ session: s.id, kind: "task", text: task, data: { planMode: s.planMode } });

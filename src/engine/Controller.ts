@@ -56,6 +56,14 @@ export class Controller implements vscode.Disposable {
   /** "fresh" = prompt ve schránce, ještě nevložen; "sent" = vložen, čeká se na model */
   promptPhase: "fresh" | "sent" | undefined;
   builtinSkillsDir?: string;
+  /** přiložit celou codebase k dalšímu úkolu (zaškrtávátko v panelu; výchozí z copyAgent.context.fullBundle) */
+  fullBundle = true;
+  private readonly configSub: vscode.Disposable;
+
+  setFullBundle(value: boolean): void {
+    this.fullBundle = value;
+    this.changeEmitter.fire();
+  }
 
   constructor(
     readonly session: Session,
@@ -76,6 +84,11 @@ export class Controller implements vscode.Disposable {
     });
     clipboard.onDidLog((l) => this.logLine(l));
     clipboard.onDidNotify((n) => this.pushItem({ kind: "info", turn: this.session.current?.turn, text: n.text, data: { icon: n.icon } }));
+    this.fullBundle = cfg<boolean>("context.fullBundle", true);
+    // změna nastavení přepíše zaškrtávátko v panelu na novou výchozí hodnotu
+    this.configSub = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration(`${CONFIG}.context.fullBundle`)) this.setFullBundle(cfg<boolean>("context.fullBundle", true));
+    });
     this.reloadSkills();
   }
 
@@ -225,9 +238,10 @@ export class Controller implements vscode.Disposable {
     const ctx = await engine.gatherContext(this.activeEditor(), this.skills.map((k) => ({ name: k.name, description: k.description })), original ?? task, refs.map((r) => r.path));
     ctx.refs = renderRefs(refs);
     // celá codebase jako jeden .txt k úvodnímu promptu: model má vše hned, úkol zvládne v méně kolech
-    const bundle = await engine.attachInitialBundle(ctx, s.turn);
+    const bundle = await engine.attachInitialBundle(ctx, s.turn, this.fullBundle);
     if (bundle.info) this.pushItem({ kind: "info", turn: s.turn, text: `Celá codebase přiložena jako ${bundle.info.file.split("/").pop()} (${bundle.info.files} souborů, ${kb(bundle.info.chars)}).`, data: { icon: "paperclip" } });
-    else if (bundle.reason) this.pushItem({ kind: "info", turn: s.turn, text: `Codebase se nepřikládá celá (${bundle.reason}); v promptu jsou jen automaticky vybrané soubory.`, data: { icon: "info" } });
+    else if (bundle.reason === "disabled") this.pushItem({ kind: "info", turn: s.turn, text: "Celá codebase se nepřikládá (vypnuto zaškrtávátkem v panelu); v promptu jsou jen automaticky vybrané soubory.", data: { icon: "info" } });
+    else if (bundle.reason) this.pushItem({ kind: "info", turn: s.turn, text: `Codebase se nepodařilo zabalit (${bundle.reason}); v promptu jsou jen automaticky vybrané soubory.`, data: { icon: "info" } });
     const prompt = engine.initialPrompt(s, ctx);
     void this.loop(prompt, false, bundle.file ? [bundle.file] : []);
   }
@@ -450,7 +464,7 @@ export class Controller implements vscode.Disposable {
     const asFile = process.platform === "win32" && cfg<boolean>("prompt.asFile", false);
     const files = attachments.filter((a) => /\.(png|jpe?g|gif|webp|txt|md)$/i.test(a));
     if (asFile) return [{ kind: "files", files, promptFile: true }];
-    const parts = splitPrompt(prompt, cfg<number>("prompt.maxChars", 8000), cfg("prompt.language", "cs"));
+    const parts = splitPrompt(prompt, cfg<number>("prompt.maxChars", 80000), cfg("prompt.language", "cs"));
     const steps: import("./SessionData").DeliveryStep[] = parts.map((text, i) => ({ kind: "text", text, part: i + 1, total: parts.length }));
     if (files.length && delivery !== "history") steps.push({ kind: "files", files });
     return steps;
@@ -753,7 +767,7 @@ export class Controller implements vscode.Disposable {
       host,
       {
         target: cfg<Target>("target", "copilot-agent"),
-        maxChars: cfg("prompt.maxChars", 8000),
+        maxChars: cfg("prompt.maxChars", 80000),
         maxParts: 6,
         resultMaxChars: cfg("prompt.resultMaxChars", 6000),
         replyMaxChars: cfg("reply.maxChars", 9000),
@@ -767,8 +781,7 @@ export class Controller implements vscode.Disposable {
         autoContext: cfg("context.auto", true),
         autoContextMaxChars: cfg("context.autoMaxChars", 14000),
         bundleInline: cfg<string>("bundle.delivery", "file") === "text",
-        fullContext: cfg<"auto" | "always" | "off">("context.full", "auto"),
-        fullMaxChars: cfg<number>("context.fullMaxChars", 800_000),
+        fullContext: cfg<boolean>("context.fullBundle", true),
       },
       listener,
     );
@@ -891,6 +904,7 @@ export class Controller implements vscode.Disposable {
 
   dispose(): void {
     this.cancelWait();
+    this.configSub.dispose();
     this.host?.dispose();
     this.output.dispose();
     this.changeEmitter.dispose();

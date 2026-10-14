@@ -66,7 +66,7 @@ i useknutý blok nebo dokument napsaný do chatu. Po návratu fokusu do VS Code 
 ## 5. Kontext
 
 1. `attachInitialBundle`: celá codebase (textové soubory podle `.gitignore`, bez binárních) jako
-   jeden kompaktní `.txt` do `.copy-agent/out/`, pokud je do `context.fullMaxChars` (nebo `always`).
+   jeden kompaktní `.txt` do `.copy-agent/out/` bez limitu velikosti (`context.fullBundle`, zaškrtávátko v panelu).
 2. Jinak `collectAutoContext`: cesty ze zadání, názvy souborů shodné s identifikátory, obsahové shody
    identifikátorů (CamelCase, snake_case, delší slova), aktivní soubor; malé soubory celé, velké jako
    osnova + okna kolem shod; rozpočet `context.autoMaxChars`.
@@ -104,8 +104,8 @@ src/
 
 ## 8. Známá omezení
 
-- Velké přílohy čte Copilot po částech; model to ví a chybějící soubory si vyžádá. Limit přílohy
-  (`context.fullMaxChars`) je nastavený konzervativně a stojí za vyladění podle tenantu.
+- Velké přílohy čte Copilot po částech; model to ví a chybějící soubory si vyžádá. Příloha nemá limit
+  velikosti; u obřího projektu ji vypněte zaškrtávátkem a nechte jen automatický výběr souborů.
 - Soubory do schránky a detekce vložení jsou jen na Windows; jinde se příloha přikládá ručně
   z `.copy-agent/out/` a další krok se spouští tlačítkem.
 - Screenshoty jen na Windows.

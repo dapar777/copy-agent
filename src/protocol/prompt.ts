@@ -34,7 +34,7 @@ export interface PromptOptions {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
   target: "copilot-agent",
-  maxChars: 8000,
+  maxChars: 80000,
   maxParts: 6,
   resultMaxChars: 6000,
   replyMaxChars: 9000,

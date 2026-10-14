@@ -185,8 +185,8 @@
         },
         "copyAgent.prompt.maxChars": {
           "type": "number",
-          "default": 8000,
-          "description": "Maximální délka jedné zprávy pro chat. Delší prompt se rozdělí na části (PART i/n), které vložíte po sobě; model odpoví až na poslední. Copilot v Teams má limit podle tenantu 4 000–16 000 znaků; ověřte vložením dlouhého textu a nastavte."
+          "default": 80000,
+          "description": "Maximální délka jedné zprávy pro chat. Delší prompt se rozdělí na části (PART i/n), které vložíte po sobě; model odpoví až na poslední. Výchozí 80 000 znaků (dělení prakticky nenastává); pokud chat dlouhou zprávu odmítne, snižte."
         },
         "copyAgent.prompt.resultMaxChars": {
           "type": "number",
@@ -235,25 +235,10 @@
           "default": 14000,
           "description": "Rozpočet automatického kontextu ve znacích (dělí se na části podle copyAgent.prompt.maxChars)."
         },
-        "copyAgent.context.full": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "always",
-            "off"
-          ],
-          "default": "auto",
-          "enumDescriptions": [
-            "Když je codebase menší než copyAgent.context.fullMaxChars, přiloží se celá; jinak jen automaticky vybrané soubory.",
-            "Vždy přiložit celou codebase (i velkou).",
-            "Nikdy; model si soubory vyžádá (nebo dostane jen automatický výběr)."
-          ],
-          "description": "Celá codebase jako jeden soubor .txt přiložený k úvodnímu promptu (méně kol: model má vše hned). Soubor se dá do schránky po vložení textu promptu; v Teams ho připojí Ctrl+V."
-        },
-        "copyAgent.context.fullMaxChars": {
-          "type": "number",
-          "default": 800000,
-          "description": "Nad tolik znaků se celá codebase v režimu auto nepřikládá (velké přílohy chat čte jen po částech). Binární soubory a .gitignore se vynechávají vždy."
+        "copyAgent.context.fullBundle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Přiložit celou codebase jako jeden soubor .txt k úvodnímu promptu (bez limitu velikosti; binární soubory a .gitignore se vynechávají). Nejméně kol: model má vše hned. Zaškrtávátko v panelu to pro další úkol přepne; výchozí hodnota je odsud."
         },
         "copyAgent.clipboard.watch": {
           "type": "boolean",

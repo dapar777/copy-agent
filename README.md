@@ -30,8 +30,9 @@ pro něj dostanete do schránky příkazem **Copy Agent: Zkopírovat instrukce p
 1. V panelu Copy Agent (pravý postranní panel, přepíná se v jeho záhlaví vedle Copilot Chatu) napište úkol a odešlete Enterem (nebo `Ctrl+Alt+C`).
    Lomítko `/` nabídne příkazy a skilly, `#` odkazy na soubory.
 2. Prompt je ve schránce: v chatu s agentem `Ctrl+V`. Panel vede krok za krokem:
-   - delší prompt jde po částech `[PART i/n]` (model na části odpoví „OK“); po vložení se další část
-     zkopíruje sama, nebo tlačítkem *Další krok* / `Ctrl+Alt+N`;
+   - prompt delší než `copyAgent.prompt.maxChars` (výchozí 80 000 znaků, takže zřídka) jde po částech
+     `[PART i/n]` (model na části odpoví „OK“); po vložení se další část zkopíruje sama, nebo tlačítkem
+     *Další krok* / `Ctrl+Alt+N`;
    - po textu se do schránky dá **soubor s celou codebase** (jen Windows; jinde ho přiložíte ručně
      z `.copy-agent/out/`): stejným `Ctrl+V` ho připojíte jako přílohu a zprávu odešlete.
 3. Model odpoví blokem `<copy turn="N">…</copy>` v ohrazení kódu. Klikněte na **kopírovat** u bloku
@@ -43,14 +44,17 @@ pro něj dostanete do schránky příkazem **Copy Agent: Zkopírovat instrukce p
 Změny v souborech se aplikují hned (aby šly spustit testy), ale zůstávají **ke schválení** jako
 v Copilotu: v editoru jsou zvýrazněné, nad každou je CodeLens *Přijmout / Zamítnout*, příkaz
 **Copy Agent: Projít změny** je otevírá jednu po druhé. Zamítnutí se modelu nahlásí v dalším kole.
+Když provádění akcí stojí na schválení příkazu, stavová karta zežloutne, ukáže příkaz a tlačítka
+*Povolit / Zamítnout / Auto* přímo v ní.
 
 ## Co umí
 
-- **Celá codebase v příloze.** Při startu úkolu se všechny textové soubory (podle `.gitignore`) zabalí
-  do jednoho `.txt` (`===== FILE: cesta =====` + obsah). Model tak nemusí nic vyžadovat a obvykle
-  úkol dokončí v jedné odpovědi. Nad `copyAgent.context.fullMaxChars` (výchozí 800 000 znaků) se místo
-  toho přiloží jen **automaticky vybrané soubory**: cesty a identifikátory ze zadání, aktivní soubor,
-  u velkých souborů osnova a okolí shod (`copyAgent.context.auto`).
+- **Celá codebase v příloze.** Při startu úkolu se všechny textové soubory (podle `.gitignore`, bez
+  binárních, bez limitu velikosti) zabalí do jednoho `.txt` (`===== FILE: cesta =====` + obsah). Model
+  tak nemusí nic vyžadovat a obvykle úkol dokončí v jedné odpovědi. Vypnout jde nastavením
+  `copyAgent.context.fullBundle` nebo zaškrtávátkem „celá codebase“ dole v panelu (platí pro další úkol).
+  Vedle toho jdou v promptu vždy **automaticky vybrané soubory**: cesty a identifikátory ze zadání,
+  aktivní soubor, u velkých souborů osnova a okolí shod (`copyAgent.context.auto`).
 - **Dva cíle.** `copyAgent.target = copilot-agent` (výchozí): protokol zná agent z instrukcí, první
   prompt má ~2 000 znaků plus kontext. `generic`: celý popis protokolu jde v prvním promptu (obecný chat).
 - **Limity chatu.** Prompt nad `copyAgent.prompt.maxChars` se dělí na části; odpověď modelu nad
@@ -114,9 +118,9 @@ Ovládací příkazy v panelu: `/plan`, `/suggest`, `/auto`, `/resend`, `/undo`,
 Tlačítko ⚙ v panelu, nebo `Ctrl+,` a hledat `copyAgent`. Nejdůležitější:
 
 - `copyAgent.target` – `copilot-agent` (výchozí) / `generic`.
-- `copyAgent.prompt.maxChars` (8 000) – limit jedné zprávy chatu; delší prompt jde po částech.
+- `copyAgent.prompt.maxChars` (80 000) – limit jedné zprávy chatu; delší prompt jde po částech (snižte, když chat dlouhou zprávu odmítne).
 - `copyAgent.reply.maxChars` (9 000) – kolik znaků má model dát do jedné odpovědi.
-- `copyAgent.context.full` (`auto`) a `copyAgent.context.fullMaxChars` (800 000) – celá codebase v příloze.
+- `copyAgent.context.fullBundle` (true) – celá codebase v příloze úvodního promptu; zaškrtávátko „celá codebase“ v panelu to přepne pro další úkol.
 - `copyAgent.context.auto` (true) – automatický výběr souborů podle zadání.
 - `copyAgent.bundle.delivery` – `file` (výchozí, Windows: soubor do schránky), `history` (Win+V), `text`.
 - `copyAgent.prompt.asFile` – prompt jako `copy-prompt-N.txt` spolu s přílohou (jedno Ctrl+V).

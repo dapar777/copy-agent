@@ -79,6 +79,8 @@ export class SidebarView implements vscode.WebviewViewProvider {
         await vscode.workspace.getConfiguration(CONFIG).update("target", m.text === "generic" ? "generic" : "copilot-agent", vscode.ConfigurationTarget.Global);
         return this.push();
       }
+      case "setFullBundle":
+        return c.setFullBundle(!!m.approve);
       case "copyAgain":
         return c.copyPromptAgain();
       case "nextPart":
@@ -198,6 +200,7 @@ export class SidebarView implements vscode.WebviewViewProvider {
       items: c.items.slice(-150),
       current: c.currentAction,
       promptPhase: c.promptPhase,
+      fullBundle: c.fullBundle,
       target: cfg<string>("target", "copilot-agent"),
       delivery: cfg<string>("bundle.delivery", "text"),
       approvals: { mode: c.approvals.mode, pending: c.approvals.pendingRequests, history: c.approvals.history.slice(-8), patterns: c.approvals.allowPatterns() },
@@ -282,6 +285,10 @@ export class SidebarView implements vscode.WebviewViewProvider {
   .ref { font-family: var(--mono); background: color-mix(in srgb, var(--info) 18%, var(--card)); border: 1px solid color-mix(in srgb, var(--info) 40%, var(--border)); border-radius: 4px; padding: 0 4px; }
   .askhint { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; font-size: 12.5px; } .askhint b { color: var(--accent); white-space: nowrap; } .askhint .q { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
   .composer textarea { min-height: 56px; max-height: 200px; resize: vertical; } .composer .hint { color: var(--muted); font-size: 11px; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+  .composer .opt { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; } .composer .opt input { margin: 0; }
+  .banner.approval { border: 2px solid var(--warn); background: color-mix(in srgb, var(--warn) 18%, var(--card)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 30%, transparent); }
+  .banner.approval .beacon { background: var(--warn); animation-duration: .5s; } .banner .cmd.big { display: block; margin: 4px 0; padding: 6px 8px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  .msg.approval { border: 2px solid var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent); }
   .slashbtn { width: 32px; height: 32px; border-radius: 8px; font-family: var(--mono); font-weight: 700; padding: 0; }
   .popup { position: absolute; left: 10px; right: 10px; bottom: 100%; margin-bottom: -6px; background: var(--vscode-editorSuggestWidget-background, var(--card)); border: 1px solid var(--vscode-editorSuggestWidget-border, var(--border)); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-height: 260px; overflow: auto; z-index: 5; }
   .popup .it { display: flex; gap: 8px; padding: 6px 10px; cursor: pointer; align-items: baseline; } .popup .it.sel, .popup .it:hover { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
@@ -320,13 +327,13 @@ export class SidebarView implements vscode.WebviewViewProvider {
     <div id="askOptions" class="btns" hidden></div>
     <div id="refbar" class="refbar" hidden><span class="sub">Kontext:</span><button id="refFile" class="small ghost" data-ic="plus" data-label="soubor"></button><button id="refSel" class="small ghost" hidden data-ic="plus" data-label="výběr"></button><span id="refHint" class="sub"></span></div>
     <div class="box"><button id="slash" class="slashbtn" title="Příkazy a skilly">/</button><textarea id="input" rows="2" placeholder="Zadejte úkol… (/ pro příkazy, Enter odešle, Shift+Enter nový řádek)"></textarea><button id="send" class="primary" title="Odeslat (Enter)" data-ic="send"></button></div>
-    <div class="hint"><span id="hint"></span><span class="spacer"></span><button id="stopBtn" class="ghost small" hidden data-ic="square" data-label="zrušit"></button><button id="undoBtn" class="ghost small" hidden data-ic="undo" data-label="undo"></button><button id="resendBtn" class="ghost small" hidden title="Znovu poslat celý kontext (nový chat)" data-ic="refresh" data-label="kontext znovu"></button></div>
+    <div class="hint"><span id="hint"></span><span class="spacer"></span><label class="opt" title="Celá codebase jako jeden .txt k úvodnímu promptu dalšího úkolu (výchozí hodnota z nastavení copyAgent.context.fullBundle)"><input type="checkbox" id="fullBundle"> celá codebase</label><button id="stopBtn" class="ghost small" hidden data-ic="square" data-label="zrušit"></button><button id="undoBtn" class="ghost small" hidden data-ic="undo" data-label="undo"></button><button id="resendBtn" class="ghost small" hidden title="Znovu poslat celý kontext (nový chat)" data-ic="refresh" data-label="kontext znovu"></button></div>
   </div>
   <details class="log"><summary>Log</summary><pre id="log"></pre></details>
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
-  const LABELS = { send: "Odesílám", copyAgain: "Kopíruji prompt", nextPart: "Kopíruji další část", showPrompt: "Otevírám prompt", pasteClip: "Beru odpověď ze schránky", resend: "Skládám celý kontext", correction: "Posílám opravný prompt", suggest: "Připravuji návrhy", interrupt: "Přerušuji akce", stop: "Ruším úkol", undo: "Vracím poslední kolo", approve: "Zpracovávám rozhodnutí", suggestion: "Ukládám návrh", suggestionsAll: "Ukládám návrhy", setMode: "Měním schvalování", setTarget: "Měním cíl", autoAll: "Přepínám na auto", transcript: "Otevírám záznam", instructions: "Kopíruji instrukce", settings: "Otevírám nastavení", reviewNext: "Otevírám změny", acceptAll: "Přijímám změny", rejectAll: "Zamítám změny", acceptFile: "Přijímám soubor", rejectFile: "Zamítám soubor", openDiff: "Otevírám diff", addPattern: "Ukládám výjimku", removePattern: "Mažu výjimku" };
+  const LABELS = { setFullBundle: "Ukládám volbu", send: "Odesílám", copyAgain: "Kopíruji prompt", nextPart: "Kopíruji další část", showPrompt: "Otevírám prompt", pasteClip: "Beru odpověď ze schránky", resend: "Skládám celý kontext", correction: "Posílám opravný prompt", suggest: "Připravuji návrhy", interrupt: "Přerušuji akce", stop: "Ruším úkol", undo: "Vracím poslední kolo", approve: "Zpracovávám rozhodnutí", suggestion: "Ukládám návrh", suggestionsAll: "Ukládám návrhy", setMode: "Měním schvalování", setTarget: "Měním cíl", autoAll: "Přepínám na auto", transcript: "Otevírám záznam", instructions: "Kopíruji instrukce", settings: "Otevírám nastavení", reviewNext: "Otevírám změny", acceptAll: "Přijímám změny", rejectAll: "Zamítám změny", acceptFile: "Přijímám soubor", rejectFile: "Zamítám soubor", openDiff: "Otevírám diff", addPattern: "Ukládám výjimku", removePattern: "Mažu výjimku" };
   let reqSeq = 0; const pending = new Map(); let lastClicked = null; let lastClickAt = 0;
   document.addEventListener("click", (e) => { const b = e.target && e.target.closest ? e.target.closest("button") : null; if (b) { lastClicked = b; lastClickAt = Date.now(); } }, true);
   function showBusy(html, cls) { const el = $("busy"); el.innerHTML = html; el.className = "pill busy " + (cls || ""); el.hidden = false; }
@@ -463,6 +470,17 @@ export class SidebarView implements vscode.WebviewViewProvider {
       } else if (s.state === "awaitingUser") b.innerHTML = '<button class="small" data-act="focus">Odpovědět</button>';
       else if (s.state === "executing") {
         const cur = state.current;
+        const pend = state.approvals.pending || [];
+        if (pend.length) {
+          // provádění stojí na schválení: karta to říká nahlas a schválit jde rovnou tady
+          const a = pend[0];
+          banner.className = "banner approval";
+          $("bannerTitle").textContent = (a.kind === "command" ? "Čeká na schválení příkazu" : "Čeká na schválení smazání") + " · kolo " + s.turn;
+          $("bannerSub").innerHTML = (cur ? "Akce " + cur.index + "/" + cur.total + " stojí, dokud nerozhodnete" + (pend.length > 1 ? " (" + pend.length + " požadavky)" : "") + ":" : "Čeká se na vaše rozhodnutí:") + "<span class='cmd big'>" + esc(a.text) + "</span>" + (a.cwd && a.cwd !== "." ? "<span class='sub'>v " + esc(a.cwd) + "</span>" : "");
+          b.innerHTML = '<button class="primary small" data-act="allow" data-id="' + esc(a.id) + '">Povolit</button><button class="small" data-act="deny" data-id="' + esc(a.id) + '">Zamítnout</button>' + (a.kind === "command" ? '<button class="small" data-act="autoAll" title="Přepne schvalování na auto a povolí čekající příkazy">Auto (dál se neptat)</button>' : "") + '<button class="ghost small" data-act="interrupt">■ Přerušit akce</button>';
+          for (const x of b.querySelectorAll("button")) x.onclick = onAct;
+          return;
+        }
         $("bannerSub").innerHTML = cur ? "Akce " + cur.index + "/" + cur.total + ": <span class='cmd'>" + esc(cur.tool) + (cur.target ? " " + esc(cur.target) : "") + "</span> <span id='elapsed' data-start='" + cur.startedAt + "'></span>" : esc(sub);
         b.innerHTML = '<button class="small" data-act="interrupt">■ Přerušit akce</button>';
       }
@@ -508,6 +526,7 @@ export class SidebarView implements vscode.WebviewViewProvider {
       const used = input.value.match(/#[^\\s#]+/g) || [];
       $("refHint").innerHTML = used.length ? used.map((r) => '<span class="ref">' + esc(r) + "</span>").join(" ") : "napište # pro odkaz na soubor";
     }
+    $("fullBundle").checked = !!state.fullBundle;
     $("log").textContent = state.log.join("\\n");
   }
 
@@ -595,6 +614,7 @@ export class SidebarView implements vscode.WebviewViewProvider {
   function submit() { const t = input.value.trim(); if (!t) return; send("send", { text: t }); input.value = ""; popup.hidden = true; }
   function addRef(token) { const v = input.value; if (v.includes("#" + token)) { input.focus(); return; } input.value = (v ? v.replace(/\\s*$/, "") + " " : "") + "#" + token + " "; input.focus(); popup.hidden = true; }
   $("refFile").onclick = () => addRef((state.editor && state.editor.path) || "file"); $("refSel").onclick = () => addRef("selection");
+  $("fullBundle").onchange = () => send("setFullBundle", { approve: $("fullBundle").checked });
   $("send").onclick = submit; $("slash").onclick = () => { if (!popup.hidden) { popup.hidden = true; return; } sel = 0; showPopup("", true); input.focus(); };
   $("modeBtn").onclick = () => { $("exceptions").hidden = !$("exceptions").hidden; };
   $("targetBtn").onclick = () => send("setTarget", { text: state.target === "generic" ? "copilot-agent" : "generic" });

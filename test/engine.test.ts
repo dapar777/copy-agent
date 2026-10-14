@@ -114,13 +114,14 @@ describe("TurnEngine", () => {
     expect(ctx.autoContext).toBeUndefined();
   });
 
-  it("falls back to auto-context when the codebase is over the limit", async () => {
-    const small = new TurnEngine(new NodeHost(dir, { autoConfirm: true, log: () => undefined }), { ...DEFAULT_OPTIONS, treeMaxEntries: 50, fullMaxChars: 50 });
-    const ctx = await small.gatherContext(undefined, undefined, "change add in math.ts");
-    const b = await small.attachInitialBundle(ctx, 1);
+  it("skips the bundle when disabled (checkbox) and keeps auto-context", async () => {
+    const ctx = await engine.gatherContext(undefined, undefined, "change add in math.ts");
+    const b = await engine.attachInitialBundle(ctx, 1, false);
     expect(b.file).toBeUndefined();
-    expect(b.reason).toMatch(/larger than/);
+    expect(b.reason).toBe("disabled");
     expect(ctx.autoContext).toContain("src/math.ts");
+    const off = new TurnEngine(new NodeHost(dir, { autoConfirm: true, log: () => undefined }), { ...DEFAULT_OPTIONS, treeMaxEntries: 50, fullContext: false });
+    expect((await off.attachInitialBundle(await off.gatherContext(), 1)).reason).toBe("disabled");
   });
 
   it("asks for a review before done when enabled and the change is big", async () => {
