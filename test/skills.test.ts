@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { NodeHost } from "../src/host/NodeHost";
-import { homeStateRelOf, resolveHomeState, resolveRel } from "../src/protocol/roots";
+import { canonicalRel, homeStateRelOf, resolveHomeState, resolveRel } from "../src/protocol/roots";
 import { isHelpRequest, parseInput, skillHelp } from "../src/protocol/slash";
 import { loadSkills } from "../src/skills/Skills";
 
@@ -72,5 +72,25 @@ describe("global skills via NodeHost", () => {
     expect(rn?.source?.startsWith(home)).toBe(true);
     expect(skills.some((s) => s.name === "skill-creator" && s.builtin)).toBe(true);
     for (const s of skills.filter((x) => x.builtin)) expect(skillHelp(s)).toContain("Použití:");
+  });
+});
+
+describe("path spellings the model uses", () => {
+  const roots = [{ name: "app", fsPath: path.resolve("/ws/app") }, { name: "lib", fsPath: path.resolve("/ws/lib") }];
+  const home = os.homedir();
+  it("accepts absolute, expanded-home and multi-root spellings of global paths", () => {
+    const target = path.join(home, ".copy-agent", "skills", "rn", "SKILL.md");
+    expect(resolveRel(path.join(home, ".copy-agent", "skills", "rn", "SKILL.md"), roots).fsPath).toBe(target);
+    expect(resolveRel("$HOME/.copy-agent/skills/rn/SKILL.md", roots).fsPath).toBe(target);
+    expect(resolveRel("%USERPROFILE%\\.copy-agent\\skills\\rn\\SKILL.md", roots).fsPath).toBe(target);
+    expect(resolveRel("~\\.copy-agent\\skills\\rn\\SKILL.md", roots).fsPath).toBe(target);
+    expect(canonicalRel("$HOME/.copy-agent/skills/rn/SKILL.md", roots)).toBe("~/.copy-agent/skills/rn/SKILL.md");
+  });
+  it("converts absolute workspace paths and explains the rest", () => {
+    expect(canonicalRel(path.resolve("/ws/lib/src/x.ts"), roots)).toBe("lib/src/x.ts");
+    expect(canonicalRel(path.resolve("/ws/app/a.ts"), [roots[0]])).toBe("a.ts");
+    expect(() => resolveRel("SKILL.md", roots)).toThrow(/~\/\.copy-agent\/skills\/my-skill\/SKILL\.md/);
+    expect(() => resolveRel(path.resolve("/elsewhere/x.ts"), roots)).toThrow(/outside the workspace. Allowed paths/);
+    expect(() => resolveRel("../x.ts", [roots[0]])).toThrow(/Allowed paths/);
   });
 });

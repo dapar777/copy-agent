@@ -49,31 +49,68 @@ function clean(rel: string): string {
   return rel.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 }
 
-function inside(root: string, rel: string): string {
+function inside(root: string, rel: string, hint = ""): string {
   const abs = path.resolve(root, rel);
   const back = path.relative(root, abs);
-  if (back.startsWith("..") || path.isAbsolute(back)) throw new Error(`Path "${rel}" is outside the workspace.`);
+  if (back.startsWith("..") || path.isAbsolute(back)) throw new Error(`Path "${rel}" is outside the workspace.${hint ? " " + hint : ""}`);
   return abs;
 }
 
+/** `~`, `$HOME`, `${HOME}`, `%USERPROFILE%` na začátku cesty → domovská složka (model je rád rozepisuje). */
+export function expandHome(rel: string, home: string = os.homedir()): string {
+  return rel
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^(~|\$HOME|\$\{HOME\}|%USERPROFILE%|%HOME%)(?=\/|$)/i, home.replace(/\\/g, "/"));
+}
+
+const HINT = `Allowed paths: workspace-relative (e.g. "src/app.ts"; in a multi-root workspace prefixed with the folder name) and, for the agent's own global files (skills, scripts), literally "~/.copy-agent/…" (e.g. "~/.copy-agent/skills/my-skill/SKILL.md"). Do not use absolute paths.`;
+
+/**
+ * Relativní cesta → absolutní. Jedna složka: relativně k ní. Více složek: první segment je název
+ * složky; `.copy-agent/…` patří do první složky. `~/.copy-agent/…` (i rozepsané absolutně nebo přes
+ * $HOME / %USERPROFILE%) je jediná povolená cesta mimo workspace. Absolutní cesta uvnitř některé
+ * složky workspace se přijme a převede; cokoli jiného je chyba s nápovědou, jak cesty psát.
+ */
 export function resolveRel(rel: string, roots: RootFolder[]): { fsPath: string; folder: RootFolder; inside: string } {
   if (!roots.length) throw new Error("Není otevřený žádný workspace.");
-  const home = resolveHomeState(rel);
-  if (home) return { fsPath: home, folder: { name: HOME_PREFIX, fsPath: path.join(os.homedir(), STATE_DIR) }, inside: rel.replace(/\\/g, "/").slice(HOME_PREFIX.length).replace(/^\/+/, "") };
-  const c = clean(rel);
-  if (roots.length === 1) return { fsPath: inside(roots[0].fsPath, c), folder: roots[0], inside: c };
+  const expanded = expandHome(rel);
+  const homeRel = path.isAbsolute(expanded) ? homeStateRelOf(expanded) : undefined;
+  const home = resolveHomeState(homeRel ?? expanded);
+  if (home) {
+    const tail = (homeRel ?? expanded).slice(HOME_PREFIX.length).replace(/^\/+/, "");
+    return { fsPath: home, folder: { name: HOME_PREFIX, fsPath: path.join(os.homedir(), STATE_DIR) }, inside: tail };
+  }
+  let given = rel;
+  if (path.isAbsolute(expanded)) {
+    // absolutní cesta uvnitř workspace: převést na relativní; mimo workspace odmítnout s nápovědou
+    const r = relOf(expanded, roots);
+    if (!r) throw new Error(`Path "${rel}" is outside the workspace. ${HINT}`);
+    given = r;
+  }
+  const c = clean(given);
+  if (roots.length === 1) return { fsPath: inside(roots[0].fsPath, c, HINT), folder: roots[0], inside: c };
   const [head, ...rest] = c.split("/");
   const tail = rest.join("/");
-  if (head === STATE_DIR || c === "" || c === ".") return { fsPath: inside(roots[0].fsPath, c), folder: roots[0], inside: c };
+  if (head === STATE_DIR || c === "" || c === ".") return { fsPath: inside(roots[0].fsPath, c, HINT), folder: roots[0], inside: c };
   const folder = roots.find((r) => r.name === head);
   if (!folder) {
     throw new Error(
       `Path "${rel}" does not start with a workspace folder name. This workspace has several folders; paths start with their names: ` +
         roots.map((r) => `${r.name}/…`).join(", ") +
-        ".",
+        `. ${HINT}`,
     );
   }
-  return { fsPath: inside(folder.fsPath, tail), folder, inside: tail };
+  return { fsPath: inside(folder.fsPath, tail, HINT), folder, inside: tail };
+}
+
+/**
+ * Kanonický tvar cesty, jak ji agent používá dál (klíč review, výsledky): `~/.copy-agent/…` pro
+ * globální soubory, jinak cesta relativní k workspace (u multi-root s názvem složky).
+ */
+export function canonicalRel(rel: string, roots: RootFolder[]): string {
+  const r = resolveRel(rel, roots);
+  return relOf(r.fsPath, roots) ?? rel;
 }
 
 export function relOf(fsPath: string, roots: RootFolder[]): string | undefined {

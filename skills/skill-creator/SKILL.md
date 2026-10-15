@@ -10,7 +10,10 @@ other tool's directory, never as a loose file in the project root.
 - LOCAL (`--local` in the request): `.copy-agent/skills/<name>/SKILL.md` — this workspace only.
 
 The tool resolves the path `~/.copy-agent/...` itself (it is the only path outside the workspace you
-may write to), so write it literally: `<write path="~/.copy-agent/skills/<name>/SKILL.md">`.
+may write to), so write it literally: `<write path="~/.copy-agent/skills/<name>/SKILL.md">`. Do not
+expand `~` to an absolute path and do not use `$HOME`/`%USERPROFILE%`; a bare `SKILL.md` or a path
+inside another tool's folder is rejected. In a multi-root workspace the local form is
+`.copy-agent/skills/<name>/SKILL.md` (it lives in the first folder).
 
 ## Procedure
 

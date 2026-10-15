@@ -31,6 +31,8 @@ export interface Host {
   readonly policy: HostPolicy;
 
   assertInside(rel: string): void;
+  /** Kanonický tvar cesty (relativní k workspace, nebo `~/.copy-agent/…`); vyhodí chybu pro cestu mimo. */
+  canonical(rel: string): string;
   exists(rel: string): Promise<boolean>;
   /** Obsah souboru; kódování se pozná z bajtů, konce řádků se sjednotí na LF. */
   readFile(rel: string): Promise<string>;

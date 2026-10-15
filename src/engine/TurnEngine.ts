@@ -469,6 +469,15 @@ export class TurnEngine {
     }
 
     const failed = outcome.results.filter((r) => r.status !== "ok");
+    // stejná akce selhala i v minulém kole se stejnou chybou: model se točí; řekneme mu to natvrdo
+    const prevFailed = new Set((prev?.results ?? []).filter((r) => r.status !== "ok").map((r) => `${r.tool}|${r.attrs.path ?? r.attrs.to ?? ""}|${(r.output ?? "").split("\n")[0]}`));
+    const repeated = failed.filter((r) => prevFailed.has(`${r.tool}|${r.attrs.path ?? r.attrs.to ?? ""}|${(r.output ?? "").split("\n")[0]}`));
+    if (repeated.length) {
+      agentNotes.push(
+        `STOP REPEATING: ${repeated.map((r) => `<${r.tool}${r.attrs.path ? ` path="${r.attrs.path}"` : ""}>`).join(", ")} failed in the previous turn with the same error and failed again now. ` +
+          `Repeating it a third time will fail too. Read the error text, change what it asks for (path spelling, SEARCH text, command), or explain in <ask> what you need from the user.`,
+      );
+    }
     let review: { round: number; files: string[] } | undefined;
     if (outcome.done !== undefined && failed.length === 0 && !parsed.truncated) {
       const r = await this.reviewBeforeDone(session, outcome, turn);

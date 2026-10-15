@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { DEFAULT_EXCLUDES, parseGitignoreNames } from "../protocol/text";
-import { splitGlob } from "../protocol/roots";
+import { canonicalRel, splitGlob } from "../protocol/roots";
 import { ApprovalService } from "../safety/Approvals";
 import { FileEncoding } from "../tools/encoding";
 import { cfg, CONFIG, fileEncodingOf, fileExists, readText, resolveInWorkspace, tryToRel, workspaceFolders, workspaceName, workspaceRoot, writeText } from "../util";
@@ -43,6 +43,10 @@ export class VsCodeHost implements Host {
 
   assertInside(rel: string): void {
     resolveInWorkspace(rel);
+  }
+
+  canonical(rel: string): string {
+    return canonicalRel(rel, workspaceFolders());
   }
 
   exists(rel: string): Promise<boolean> {

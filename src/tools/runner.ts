@@ -104,7 +104,29 @@ export class ToolRunner {
     return outcome;
   }
 
+  /** Akce, jejichž atributy jsou cesty (ne vzory): sjednotí se na kanonický tvar před vykonáním. */
+  private static readonly PATH_ATTRS: Record<string, string[]> = { read: ["path"], ls: ["path"], write: ["path"], edit: ["path"], move: ["from", "to"], delete: ["path"], diagnostics: ["path"], run: ["cwd"] };
+
+  /**
+   * Cesty v akci převede na kanonický tvar (absolutní cesta uvnitř workspace → relativní, rozepsaný
+   * domov → `~/.copy-agent/…`), aby review, výsledky i další kola mluvily o témže souboru. Cestu, která
+   * nejde přeložit, nechá být: akce pak selže s nápovědou, jak cesty psát.
+   */
+  private normalizePaths(a: Action): void {
+    for (const k of ToolRunner.PATH_ATTRS[a.tool] ?? []) {
+      const v = a.attrs[k];
+      if (!v || v === ".") continue;
+      try {
+        const c = this.host.canonical(v);
+        if (c && c !== v) a.attrs[k] = c;
+      } catch {
+        /* nepřeložitelná cesta: nechat, ať akce vrátí chybu s nápovědou */
+      }
+    }
+  }
+
   private async timed(a: Action, turn: number, outcome: RunOutcome, ctx: RunContext): Promise<ActionResult | undefined> {
+    this.normalizePaths(a);
     ctx.onStart?.(a);
     const started = Date.now();
     const r = await this.runOne(a, turn, outcome, ctx.signal);
