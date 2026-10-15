@@ -52,7 +52,7 @@ export interface ProjectContext {
   plan?: string;
   globalInstructions?: string;
   rules?: string[];
-  skills?: { name: string; description: string }[];
+  skills?: { name: string; description: string; scope?: "built-in" | "global" | "project" }[];
   /** obsah souborů, na které uživatel odkázal přes #soubor (blok už hotový) */
   refs?: string;
   /** automaticky vybrané soubory podle zadání (blok už hotový) */
@@ -279,7 +279,7 @@ export function buildContext(ctx: ProjectContext): string {
   if (ctx.plan?.trim()) parts.push("## Current plan (maintain it with <plan>)", "", ctx.plan.trim(), "");
   if (ctx.skills?.length) {
     parts.push("## Available skills (the user invokes them with /name; their instructions are included in the task when used)", "");
-    for (const s of ctx.skills) parts.push(`- /${s.name}: ${s.description}`);
+    for (const s of ctx.skills) parts.push(`- /${s.name}${s.scope ? ` (${s.scope})` : ""}: ${s.description}`);
     parts.push("");
   }
   return parts.join("\n");

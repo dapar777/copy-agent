@@ -16,3 +16,10 @@ Commit the current working-tree changes with a clear message.
 5. Verify with `git log --oneline -1` and `git status --short`, then `<done>` with the commit hash and
    what was left uncommitted. The commit and the verification may be in the same reply as the diff review
    when the diff is small enough to judge from the first results.
+
+## Help
+Použití: /commit [rozsah nebo soubory]
+Projde git diff, rozdělí nesouvisející změny, napíše zprávu ve stylu repozitáře a commitne (bez push). Tajemství a build výstupy vynechá.
+Příklady:
+- /commit
+- /commit jen src/api

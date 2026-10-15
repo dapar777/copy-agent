@@ -23,3 +23,10 @@ The only commands allowed are harmless read-only checks that end immediately (`n
 4. Say where each command comes from (`package.json scripts.test`, `.github/workflows/ci.yml`…) so a
    later task can trust or fix it; do not verify commands by running them.
 5. Finish with `<done>` in the same reply listing what you wrote and what you could not determine.
+
+## Help
+Použití: /init
+Prozkoumá projekt a založí nebo doplní AGENTS.md (příkazy pro build a testy, struktura, konvence, úskalí). Jen čte; nic neinstaluje ani nespouští.
+Příklady:
+- /init
+- /init doplň i popis modulu billing

@@ -94,8 +94,11 @@ Když provádění akcí stojí na schválení příkazu, stavová karta zežlou
   UTF-16 i CRLF), **multi-root workspace**, **obnova sezení** po restartu VS Code, **záznam průběhu**
   (`.copy-agent/transcript.jsonl`).
 - **Skilly**: vestavěné `/init` (založí `AGENTS.md`), `/commit`, `/review`, `/test`, `/fix`, `/explain`,
-  `/docs`, `/deps`; vlastní v `.copy-agent/skills/` (projekt) nebo `~/.copy-agent/skills/` (uživatel),
-  soubor `název.md` nebo `název/SKILL.md` i se skripty.
+  `/docs`, `/deps` a `/skill-creator`; vlastní v `~/.copy-agent/skills/` (globální, ve všech projektech)
+  nebo `.copy-agent/skills/` (projekt), soubor `název.md` nebo `název/SKILL.md` i se skripty.
+  `/skill-creator <název> <k čemu je> [--local]` nový skill vytvoří přímo na správné místo (výchozí
+  globálně; model smí mimo workspace zapisovat jen do `~/.copy-agent/`), se sekcí Help; `/název --help`
+  ji zobrazí v panelu bez kola s modelem. Seznam skillů se po změně načte sám.
 - **Odkazy na soubory** v zadání jako `#cesta/soubor.ts`, `#soubor.ts:40-80`, `#file`, `#selection`.
 
 ## Příkazy a klávesy

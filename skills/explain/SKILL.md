@@ -11,3 +11,10 @@ read-only commands.
    key types), how it is wired to the rest, notable design decisions and pitfalls, and where to look next.
    Reference locations as `path:line` so the user can click them. Keep it structured and concrete; no
    generic advice.
+
+## Help
+Použití: /explain <soubor, funkce, modul nebo téma>
+Vysvětlí kód nebo architekturu pro nového inženýra: účel, tok dat, napojení, úskalí, kam se dívat dál. Nic nemění.
+Příklady:
+- /explain src/engine/TurnEngine.ts
+- /explain jak funguje autentizace

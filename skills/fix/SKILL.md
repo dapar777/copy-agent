@@ -14,3 +14,10 @@ Fix the problem described after /fix (an error message, stack trace, failing tes
 5. If the report is ambiguous or you cannot reproduce it, `<ask>` one precise question with options,
    in the same reply as your investigation, rather than guessing.
 6. `<done>`: cause, change, evidence (command output), and anything the user should watch for.
+
+## Help
+Použití: /fix <popis chyby, chybová hláška nebo stack trace>
+Reprodukuje chybu, najde příčinu, opraví ji minimální změnou, přidá regresní test a ověří.
+Příklady:
+- /fix TypeError: cannot read 'id' of undefined v storage.ts
+- /fix test login_test padá po přihlášení

@@ -13,3 +13,10 @@ anything; this task only reads and runs read-only commands.
    dead code), tests (missing or weakened), and consistency with the surrounding code and `AGENTS.md`.
 3. Report in `<done>` as a list ordered by severity, each item with `path:line`, what is wrong, why it
    matters and a concrete fix. Say explicitly when you found nothing serious. Keep it concise.
+
+## Help
+Použití: /review [soubory]
+Code review necommitnutých změn (nebo zadaných souborů): správnost, bezpečnost, výkon, testy. Nic nemění; nálezy seřazené podle závažnosti s cesta:řádek.
+Příklady:
+- /review
+- /review src/auth.ts src/session.ts

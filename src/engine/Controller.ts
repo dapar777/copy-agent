@@ -7,7 +7,7 @@ import { classifyProse, isOwnPrompt, looksLikeReply } from "../protocol/detect";
 import { buildAgentInstructions, buildCorrectionPrompt, BundleUsage, ProjectContext, ReviewMode, splitPrompt, Target } from "../protocol/prompt";
 import { parseRefs } from "../protocol/refs";
 import { STATE_DIR } from "../protocol/roots";
-import { BUILTIN_COMMANDS, composeTask, parseInput, SlashCommand } from "../protocol/slash";
+import { BUILTIN_COMMANDS, composeTask, isHelpRequest, parseInput, skillHelp, SlashCommand } from "../protocol/slash";
 import { decodeEntities } from "../protocol/text";
 import { ReviewManager } from "../review/ReviewManager";
 import { ApprovalService } from "../safety/Approvals";
@@ -113,6 +113,16 @@ export class Controller implements vscode.Disposable {
     this.changeEmitter.fire();
   }
 
+  /** Odkud skill je: vestavěný (součást rozšíření), globální (~/.copy-agent/skills), projektový (.copy-agent/skills). */
+  private skillScope(k: SlashCommand): "built-in" | "global" | "project" {
+    if (k.builtin) return "built-in";
+    return k.source?.startsWith(os.homedir()) ? "global" : "project";
+  }
+
+  private skillsForPrompt(): { name: string; description: string; scope: "built-in" | "global" | "project" }[] {
+    return this.skills.map((k) => ({ name: k.name, description: k.description, scope: this.skillScope(k) }));
+  }
+
   /** Instrukce pro agenta v Copilotu (Teams) do schránky. */
   async copyAgentInstructions(): Promise<void> {
     const text = buildAgentInstructions({ language: cfg("prompt.language", "cs"), replyMaxChars: cfg("reply.maxChars", 9000), bundleUsage: cfg<BundleUsage>("bundle.usage", "encourage"), reviewBeforeDone: cfg<ReviewMode>("review.beforeDone", "auto") });
@@ -164,13 +174,20 @@ export class Controller implements vscode.Disposable {
         case "skills":
           this.pushItem({
             kind: "system",
-            text: this.skills.length ? "Skilly:\n" + this.skills.map((k) => `/${k.name} – ${k.description}${k.builtin ? " [vestavěný]" : k.source?.startsWith(os.homedir()) ? " [uživatel]" : " [projekt]"}`).join("\n") : "Žádné skilly.",
+            text: this.skills.length
+              ? "Skilly (nápověda: /název --help):\n" + this.skills.map((k) => `/${k.name} – ${k.description} [${this.skillScope(k)}]`).join("\n") + "\n\nNový skill: /skill-creator <název> <k čemu je> [--local]"
+              : "Žádné skilly. Nový vytvoříte přes /skill-creator <název> <k čemu je>.",
           });
           return;
         case "suggest":
           await this.runSuggest();
           return;
       }
+    }
+    // `/skill --help`: nápověda ze SKILL.md rovnou v panelu, bez kola s modelem
+    if (parsed.skills.length && isHelpRequest(parsed.text)) {
+      for (const k of parsed.skills) this.pushItem({ kind: "system", text: skillHelp(k) + `\n\n(${this.skillScope(k)}: ${k.source ?? "vestavěný"})` });
+      return;
     }
     const planMode = parsed.commands.includes("plan");
     if (s && s.state === "awaitingUser" && parsed.text) {
@@ -235,7 +252,7 @@ export class Controller implements vscode.Disposable {
     await engine.archivePlan(previous);
     await this.transcript?.append({ session: s.id, kind: "task", text: task, data: { planMode } });
     const refs = await resolveRefs(engine.host, original ?? task, this.activeEditor());
-    const ctx = await engine.gatherContext(this.activeEditor(), this.skills.map((k) => ({ name: k.name, description: k.description })), original ?? task, refs.map((r) => r.path));
+    const ctx = await engine.gatherContext(this.activeEditor(), this.skillsForPrompt(), original ?? task, refs.map((r) => r.path));
     ctx.refs = renderRefs(refs);
     // celá codebase jako jeden .txt k úvodnímu promptu: model má vše hned, úkol zvládne v méně kolech
     const bundle = await engine.attachInitialBundle(ctx, s.turn, this.fullBundle);
@@ -264,7 +281,7 @@ export class Controller implements vscode.Disposable {
     }
     this.pushItem({ kind: "task", text: "/suggest – návrhy z průběhu práce" });
     const summary = Transcript.summarize(events);
-    const ctx = await engine.gatherContext(undefined, this.skills.map((k) => ({ name: k.name, description: k.description })));
+    const ctx = await engine.gatherContext(undefined, this.skillsForPrompt());
     ctx.existing = { ...ctx.existing, skillBodies: this.skills.slice(0, 12).map((k) => ({ name: k.name, body: k.body ?? "" })) };
     const prompt = engine.suggestPrompt(s, summary, ctx, Transcript.suggestionHistory(events));
     this.logLine("💡 Žádám model o návrhy z průběhu.");
@@ -513,7 +530,7 @@ export class Controller implements vscode.Disposable {
     if (!s) return void vscode.window.showInformationMessage("Není aktivní úkol.");
     this.cancelWait();
     const engine = this.engine ?? this.newEngine();
-    const ctx = await engine.gatherContext(this.activeEditor(), this.skills.map((k) => ({ name: k.name, description: k.description })));
+    const ctx = await engine.gatherContext(this.activeEditor(), this.skillsForPrompt());
     const prompt = engine.resumePrompt(s, ctx);
     this.pushItem({ kind: "system", text: "Kontext znovu odeslán (nový chat)." });
     void this.loop(prompt);
@@ -691,6 +708,7 @@ export class Controller implements vscode.Disposable {
           }
           if (rec.status) this.pushItem({ kind: "status", turn: rec.turn, text: rec.status });
           this.pushItem({ kind: "results", turn: rec.turn, text: describeResults(rec.results), data: rec.results.map((r) => ({ tool: r.tool, target: r.attrs.path ?? r.attrs.pattern ?? r.meta?.command ?? "", status: r.status, meta: r.meta })) });
+          if (rec.results.some((r) => ["write", "edit", "move", "delete"].includes(r.tool) && /(^|\/)\.copy-agent\/skills\//.test(String(r.attrs.path ?? r.attrs.to ?? r.attrs.from ?? "")))) this.reloadSkills();
           await this.transcript?.append({ session: s.id, kind: "results", turn: rec.turn, text: describeResults(rec.results) });
           if (s.plan && rec.actions.some((a) => a.tool === "plan")) {
             this.pushItem({ kind: "plan", turn: rec.turn, text: s.plan });

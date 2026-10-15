@@ -11,3 +11,10 @@ main docs).
 2. Fix what is wrong or missing with small `<edit section="## Heading">` or hunks; keep the existing
    voice and structure; do not pad with generic text. Document only what the code really does.
 3. `<done>`: what was wrong, what you changed, what you could not verify.
+
+## Help
+Použití: /docs [oblast]
+Srovná dokumentaci s kódem: příkazy, cesty, nastavení, příklady; opraví nesrovnalosti malými úpravami.
+Příklady:
+- /docs
+- /docs README a docs/install.md

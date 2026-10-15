@@ -57,6 +57,32 @@ export function completeSlash(prefix: string, available: SlashCommand[]): SlashC
     .slice(0, 12);
 }
 
+/** Vstup je žádost o nápovědu ke skillu: `/skill --help`, `/skill -h`, `/skill help`, `/skill ?`. */
+export function isHelpRequest(text: string): boolean {
+  return /^(--help|-h|-\?|\?|help|nápověda|napoveda)$/i.test(text.trim());
+}
+
+/**
+ * Nápověda skillu pro `/název --help`: sekce `## Help` (nebo Usage / Nápověda / Použití) ze SKILL.md;
+ * bez ní popis a začátek playbooku. Rozšíření ji zobrazí samo, bez kola s modelem.
+ */
+export function skillHelp(skill: SlashCommand): string {
+  const body = (skill.body ?? "").replace(/\r\n/g, "\n");
+  const lines = body.split("\n");
+  const start = lines.findIndex((l) => /^#{1,3}\s*(help|usage|nápověda|napoveda|použití|pouziti)\b/i.test(l));
+  let section = "";
+  if (start >= 0) {
+    const level = (lines[start].match(/^(#{1,3})/) ?? ["", "##"])[1].length;
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex((l) => new RegExp(`^#{1,${level}}\\s`).test(l));
+    section = rest.slice(0, end < 0 ? undefined : end).join("\n").trim();
+  }
+  const head = `/${skill.name} – ${skill.description}`;
+  if (section) return `${head}\n\n${section}`;
+  const preview = lines.filter((l) => !/^#\s/.test(l)).slice(0, 25).join("\n").trim();
+  return `${head}\n\n(Skill nemá sekci Help; začátek playbooku:)\n\n${preview}`;
+}
+
 /** Složí zadání pro model z textu a použitých skillů. */
 export function composeTask(parsed: ParsedInput): string {
   if (parsed.skills.length === 0) return parsed.text;

@@ -1,3 +1,4 @@
+import * as os from "os";
 import * as path from "path";
 
 /**
@@ -12,6 +13,27 @@ export interface RootFolder {
 }
 
 export const STATE_DIR = ".copy-agent";
+/** Předpona cest do uživatelské konfigurace agenta (~/.copy-agent): globální skilly, skripty, pravidla. */
+export const HOME_PREFIX = "~/.copy-agent";
+
+/**
+ * Cesta `~/.copy-agent/…` → absolutní cesta v domovské složce; jiné cesty undefined. Jediné místo mimo
+ * workspace, kam agent smí (globální skilly a skripty); únik nad ~/.copy-agent se odmítne.
+ */
+export function resolveHomeState(rel: string, home: string = os.homedir()): string | undefined {
+  const c = rel.replace(/\\/g, "/").trim();
+  if (c !== HOME_PREFIX && !c.startsWith(HOME_PREFIX + "/")) return undefined;
+  const root = path.join(home, STATE_DIR);
+  return inside(root, c.slice(HOME_PREFIX.length).replace(/^\/+/, ""));
+}
+
+/** Absolutní cesta uvnitř ~/.copy-agent → `~/.copy-agent/…`; jinak undefined. */
+export function homeStateRelOf(fsPath: string, home: string = os.homedir()): string | undefined {
+  const root = path.join(home, STATE_DIR);
+  const rel = path.relative(root, path.resolve(fsPath));
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return undefined;
+  return rel ? `${HOME_PREFIX}/${rel.replace(/\\/g, "/")}` : HOME_PREFIX;
+}
 
 export function uniqueRoots(folders: { name: string; fsPath: string }[]): RootFolder[] {
   const seen = new Map<string, number>();
@@ -36,6 +58,8 @@ function inside(root: string, rel: string): string {
 
 export function resolveRel(rel: string, roots: RootFolder[]): { fsPath: string; folder: RootFolder; inside: string } {
   if (!roots.length) throw new Error("Není otevřený žádný workspace.");
+  const home = resolveHomeState(rel);
+  if (home) return { fsPath: home, folder: { name: HOME_PREFIX, fsPath: path.join(os.homedir(), STATE_DIR) }, inside: rel.replace(/\\/g, "/").slice(HOME_PREFIX.length).replace(/^\/+/, "") };
   const c = clean(rel);
   if (roots.length === 1) return { fsPath: inside(roots[0].fsPath, c), folder: roots[0], inside: c };
   const [head, ...rest] = c.split("/");
@@ -54,6 +78,8 @@ export function resolveRel(rel: string, roots: RootFolder[]): { fsPath: string; 
 
 export function relOf(fsPath: string, roots: RootFolder[]): string | undefined {
   const norm = path.resolve(fsPath);
+  const home = homeStateRelOf(norm);
+  if (home) return home;
   const match = roots
     .map((r) => ({ r, rel: path.relative(r.fsPath, norm) }))
     .filter(({ rel }) => rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel))

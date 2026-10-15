@@ -11,3 +11,10 @@ whole project.
    or delete a test to make it pass (if a test is genuinely wrong, say so in `<done>` and ask with `<ask>`).
 3. Add tests for untested branches you touched (edge cases, error paths). Follow the existing test style.
 4. Finish with the full suite green and `<diagnostics/>`; `<done>` lists what failed, why, what changed.
+
+## Help
+Použití: /test [oblast]
+Spustí testy, opraví příčiny selhání v kódu (ne testy) a doplní chybějící testy pro dotčené větve.
+Příklady:
+- /test
+- /test modul plateb

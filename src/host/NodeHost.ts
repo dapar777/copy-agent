@@ -1,5 +1,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import { resolveHomeState } from "../protocol/roots";
 import { DEFAULT_EXCLUDES, globToRegExp, parseGitignoreNames } from "../protocol/text";
 import { applyEol, decodeBytes, DEFAULT_ENCODING, detectEncoding, encodeText, FileEncoding, normalizeEncoding, toLf } from "../tools/encoding";
 import { Host, HostPolicy, RunResult } from "./Host";
@@ -52,14 +53,17 @@ export class NodeHost implements Host {
   }
 
   private abs(rel: string): string {
+    const home = resolveHomeState(rel);
+    if (home) return home;
     this.assertInside(rel);
     return path.resolve(this.rootPath, rel.replace(/\\/g, "/").replace(/^\.\//, ""));
   }
 
   assertInside(rel: string): void {
+    if (resolveHomeState(rel)) return; // ~/.copy-agent/… (globální skilly a skripty) je povolená výjimka
     const abs = path.resolve(this.rootPath, rel.replace(/\\/g, "/"));
     const back = path.relative(this.rootPath, abs);
-    if (back.startsWith("..") || path.isAbsolute(back)) throw new Error(`Path "${rel}" is outside the workspace.`);
+    if (back.startsWith("..") || path.isAbsolute(back)) throw new Error(`Path "${rel}" is outside the workspace (only workspace paths and ~/.copy-agent/… are allowed).`);
   }
 
   async exists(rel: string): Promise<boolean> {

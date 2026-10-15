@@ -12,3 +12,9 @@ Review the project's dependencies and update them safely.
    run the test suite in the same reply. Do not apply major updates without `<ask>`ing; list them with
    their changelog risks instead.
 3. `<done>`: what was updated, test result, vulnerabilities found and what remains (majors, manual steps).
+
+## Help
+Použití: /deps
+Najde zastaralé a zranitelné závislosti ve všech manifestech, bezpečné (patch/minor) aktualizuje a otestuje; major aktualizace jen vypíše.
+Příklady:
+- /deps
