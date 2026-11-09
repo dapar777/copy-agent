@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
@@ -13,6 +14,8 @@ export interface RootFolder {
 }
 
 export const STATE_DIR = ".copy-agent";
+/** Soubory s instrukcemi projektu; holá cesta k nim patří v multi-root workspace do první složky. */
+export const INSTRUCTION_FILE_NAMES = ["AGENTS.md", "COPY-AGENT.md"];
 /** Předpona cest do uživatelské konfigurace agenta (~/.copy-agent): globální skilly, skripty, pravidla. */
 export const HOME_PREFIX = "~/.copy-agent";
 
@@ -95,6 +98,14 @@ export function resolveRel(rel: string, roots: RootFolder[]): { fsPath: string; 
   if (head === STATE_DIR || c === "" || c === ".") return { fsPath: inside(roots[0].fsPath, c, HINT), folder: roots[0], inside: c };
   const folder = roots.find((r) => r.name === head);
   if (!folder) {
+    // cesta bez názvu složky: existuje-li právě v jedné složce, patří tam; soubory agenta (AGENTS.md…)
+    // patří do první složky; jinak chyba s nápovědou (model nemá hádat)
+    const hits = roots.filter((r) => fs.existsSync(path.join(r.fsPath, c)));
+    if (hits.length === 1) return { fsPath: inside(hits[0].fsPath, c, HINT), folder: hits[0], inside: c };
+    if (hits.length > 1) {
+      throw new Error(`Path "${rel}" exists in several workspace folders (${hits.map((r) => `${r.name}/${c}`).join(", ")}); prefix it with the folder name.`);
+    }
+    if (rest.length === 0 && INSTRUCTION_FILE_NAMES.includes(head)) return { fsPath: inside(roots[0].fsPath, c, HINT), folder: roots[0], inside: c };
     throw new Error(
       `Path "${rel}" does not start with a workspace folder name. This workspace has several folders; paths start with their names: ` +
         roots.map((r) => `${r.name}/…`).join(", ") +

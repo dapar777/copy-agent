@@ -14,7 +14,7 @@ import {
   SuggestionHistory,
   summarizeTurn,
 } from "../protocol/prompt";
-import { STATE_DIR } from "../protocol/roots";
+import { INSTRUCTION_FILE_NAMES, STATE_DIR } from "../protocol/roots";
 import { Action, ActionResult, ParsedReply, REMARK_TOOLS } from "../protocol/schema";
 import { nowId } from "../protocol/text";
 import { readGlobalInstructions, readGlobalRules } from "../skills/GlobalConfig";
@@ -29,7 +29,7 @@ import { SessionData, Suggestion, TurnRecord } from "./SessionData";
 /** Projektová pravidla chování agenta (jedno na řádek). */
 export const RULES_FILE = `${STATE_DIR}/rules.md`;
 /** Soubory s instrukcemi projektu (první existující se použije). */
-export const INSTRUCTION_FILES = ["AGENTS.md", "COPY-AGENT.md"];
+export const INSTRUCTION_FILES = INSTRUCTION_FILE_NAMES;
 
 /** Ořízne chatové věty kolem dokumentu napsaného do chatu (úvod před prvním nadpisem, závěrečná nabídka). */
 export function trimChatter(body: string): { body: string; dropped: string[] } {

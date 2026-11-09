@@ -49,8 +49,13 @@ export class VsCodeHost implements Host {
     return canonicalRel(rel, workspaceFolders());
   }
 
-  exists(rel: string): Promise<boolean> {
-    return fileExists(resolveInWorkspace(rel));
+  /** Nikdy nevyhazuje: cesta, kterou nejde přeložit (mimo workspace, holá v multi-root), prostě neexistuje. */
+  async exists(rel: string): Promise<boolean> {
+    try {
+      return await fileExists(resolveInWorkspace(rel));
+    } catch {
+      return false;
+    }
   }
 
   readFile(rel: string): Promise<string> {

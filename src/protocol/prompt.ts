@@ -252,7 +252,7 @@ export function buildContext(ctx: ProjectContext): string {
       "",
       `This workspace has ${ctx.roots.length} root folders. EVERY path starts with the folder name (in <read>, <write>, <edit>, <grep glob=…>, <bundle paths=…>, <run cwd=…>):`,
       ...ctx.roots.map((r) => `- ${r.name}/ → ${r.path}`),
-      `A bare path like src/x.ts is rejected. <run> without cwd runs in ${ctx.roots[0].name}/.`,
+      `A bare path like src/x.ts is rejected (unless that file exists in exactly one folder). Project instruction files are ${ctx.roots[0].name}/AGENTS.md etc. per folder; <run> without cwd runs in ${ctx.roots[0].name}/.`,
       "",
     );
   }

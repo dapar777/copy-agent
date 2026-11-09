@@ -94,3 +94,26 @@ describe("path spellings the model uses", () => {
     expect(() => resolveRel("../x.ts", [roots[0]])).toThrow(/Allowed paths/);
   });
 });
+
+describe("multi-root bare paths", () => {
+  let ws: string;
+  beforeEach(() => {
+    ws = fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-mr-"));
+    fs.mkdirSync(path.join(ws, "app", "src"), { recursive: true });
+    fs.mkdirSync(path.join(ws, "lib"), { recursive: true });
+    fs.writeFileSync(path.join(ws, "lib", "README.md"), "lib\n");
+    fs.writeFileSync(path.join(ws, "app", "package.json"), "{}\n");
+    fs.writeFileSync(path.join(ws, "lib", "package.json"), "{}\n");
+  });
+  afterEach(() => fs.rmSync(ws, { recursive: true, force: true }));
+
+  it("maps a bare path to the one folder that has it, AGENTS.md to the first folder, ambiguous ones fail", () => {
+    const roots = [{ name: "app", fsPath: path.join(ws, "app") }, { name: "lib", fsPath: path.join(ws, "lib") }];
+    expect(resolveRel("README.md", roots).fsPath).toBe(path.join(ws, "lib", "README.md"));
+    expect(canonicalRel("README.md", roots)).toBe("lib/README.md");
+    expect(resolveRel("AGENTS.md", roots).fsPath).toBe(path.join(ws, "app", "AGENTS.md"));
+    expect(() => resolveRel("package.json", roots)).toThrow(/exists in several workspace folders/);
+    expect(() => resolveRel("src/new.ts", roots)).toThrow(/does not start with a workspace folder name/);
+    expect(resolveRel("app/src/new.ts", roots).fsPath).toBe(path.join(ws, "app", "src", "new.ts"));
+  });
+});

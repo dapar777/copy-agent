@@ -3,7 +3,9 @@ name: init
 description: Prozkoumá projekt a založí/aktualizuje AGENTS.md (příkazy, struktura, konvence, úskalí)
 ---
 Create or update the project instructions file `AGENTS.md` in the workspace root so that any future
-session starts with the essential facts. Work like a new senior engineer joining the project.
+session starts with the essential facts. Work like a new senior engineer joining the project. In a
+multi-root workspace write one file per folder you document, as `<folder>/AGENTS.md` (the "Workspace
+folders" section lists the names); a bare `AGENTS.md` goes to the first folder.
 
 READ-ONLY TASK: init maps the project, it never sets it up. Do NOT run anything that installs, builds,
 downloads or changes the environment (no `npm install`, `pip install`, builds, migrations, test runs).
