@@ -9,6 +9,11 @@ import * as path from "path";
  */
 
 export const IGNORE_ENTRIES = [".copy-agent/", "AGENTS.md"];
+/**
+ * Data pro rozšíření Review změn. U gitu je skill i rozšíření zapisují do .git/info/exclude (místně,
+ * bez změny v repu); SVN nic takového nemá, takže se složka doplní do svn:ignore, jakmile existuje.
+ */
+export const REVIEW_IGNORE = ".review/";
 const COMMENT = "# Copy Agent: pomocné soubory agenta a instrukce pro něj";
 
 function normalizeEntry(line: string): string {
@@ -88,7 +93,8 @@ export async function ensureVcsIgnore(folders: string[], opts: IgnoreOptions = {
           opts.log?.("svn: příkaz svn není k dispozici, svn:ignore se nenastaví (přidejte .copy-agent a AGENTS.md ručně).");
           continue;
         }
-        const r = addSvnIgnoreEntries(get.ok ? get.out : "", entries);
+        const svnEntries = fs.existsSync(path.join(folder, REVIEW_IGNORE)) ? [...entries, REVIEW_IGNORE] : entries;
+        const r = addSvnIgnoreEntries(get.ok ? get.out : "", svnEntries);
         if (r.added.length) {
           const set = await svn(["propset", "svn:ignore", r.value, "."], folder);
           if (set.ok) notes.push(`Do svn:ignore složky ${path.basename(folder)} přidáno: ${r.added.join(", ")} (vlastnost je změněná, commitněte ji).`);

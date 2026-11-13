@@ -32,8 +32,24 @@ function terminate(child: ChildProcess): void {
   }
 }
 
+/** Jména proměnných prostředí, kterými se skriptům skillů předává rozložení workspace. */
+export const ENV_ROOTS = "COPY_AGENT_ROOTS";
+export const ENV_WORKSPACE_FILE = "COPY_AGENT_WORKSPACE_FILE";
+
+/**
+ * Proměnné prostředí pro spouštěné příkazy: kořenové složky workspace oddělené oddělovačem cest
+ * (`;` na Windows, jinde `:`) a cesta souboru .code-workspace, pokud nějaký je. Skript skillu tak pozná
+ * multi-root workspace, i když běží v první složce.
+ */
+export function workspaceEnv(roots: string[], workspaceFile?: string, delimiter: string = process.platform === "win32" ? ";" : ":"): Record<string, string> {
+  const env: Record<string, string> = {};
+  if (roots.length) env[ENV_ROOTS] = roots.join(delimiter);
+  if (workspaceFile) env[ENV_WORKSPACE_FILE] = workspaceFile;
+  return env;
+}
+
 /** Spustí shellový příkaz a posbírá stdout+stderr. Lhůty se měří aktivním časem (uspání se nepočítá). */
-export function spawnCommand(command: string, cwd: string, timeoutMs: number, probeMs?: number, signal?: AbortSignal): Promise<RunResult> {
+export function spawnCommand(command: string, cwd: string, timeoutMs: number, probeMs?: number, signal?: AbortSignal, extraEnv: Record<string, string> = {}): Promise<RunResult> {
   const started = Date.now();
   return new Promise<RunResult>((resolve) => {
     const chunks: string[] = [];
@@ -45,7 +61,7 @@ export function spawnCommand(command: string, cwd: string, timeoutMs: number, pr
       resolve({ output: "", exit: -1, timedOut: false, interrupted: true, durationMs: 0 });
       return;
     }
-    const env: NodeJS.ProcessEnv = { ...process.env, CI: "1", FORCE_COLOR: "0", PYTHONIOENCODING: "utf-8" };
+    const env: NodeJS.ProcessEnv = { ...process.env, CI: "1", FORCE_COLOR: "0", PYTHONIOENCODING: "utf-8", ...extraEnv };
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.NoDefaultCurrentDirectoryInExePath;
     const child = spawn(command, { cwd, shell: true, env, windowsHide: true, detached: process.platform !== "win32" });

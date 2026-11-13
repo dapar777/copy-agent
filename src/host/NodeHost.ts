@@ -5,7 +5,7 @@ import { DEFAULT_EXCLUDES, globToRegExp, parseGitignoreNames } from "../protocol
 import { applyEol, decodeBytes, DEFAULT_ENCODING, detectEncoding, encodeText, FileEncoding, normalizeEncoding, toLf } from "../tools/encoding";
 import { Host, HostPolicy, RunResult } from "./Host";
 import { captureScreenshot } from "./screenshot";
-import { spawnCommand } from "./spawn";
+import { spawnCommand, workspaceEnv } from "./spawn";
 
 export const DEFAULT_POLICY: HostPolicy = {
   autoAllow: ["npm test", "npm run build", "npm run lint", "npm run typecheck", "npx tsc", "tsc", "git status", "git diff", "git log", "npx vitest run", "pytest", "python -m pytest", "python -m unittest", "cargo test", "cargo build", "go test", "go build", "dotnet build", "dotnet test"],
@@ -150,7 +150,7 @@ export class NodeHost implements Host {
 
   run(command: string, cwdRel: string, timeoutMs: number, probeMs?: number, signal?: AbortSignal): Promise<RunResult> {
     const cwd = cwdRel && cwdRel !== "." ? this.abs(cwdRel) : this.rootPath;
-    return spawnCommand(command, cwd, timeoutMs, probeMs, signal);
+    return spawnCommand(command, cwd, timeoutMs, probeMs, signal, workspaceEnv([this.rootPath]));
   }
 
   async diagnostics(): Promise<string> {

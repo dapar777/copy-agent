@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { addGitignoreEntries, addSvnIgnoreEntries, ensureVcsIgnore, findVcsRoot } from "../src/safety/VcsIgnore";
+import { addGitignoreEntries, addSvnIgnoreEntries, ensureVcsIgnore, findVcsRoot, IGNORE_ENTRIES, REVIEW_IGNORE } from "../src/safety/VcsIgnore";
 
 describe("ignore entries", () => {
   it("adds missing entries to .gitignore and keeps CRLF", () => {
@@ -22,6 +22,14 @@ describe("ignore entries", () => {
     expect(r.added).toEqual([".copy-agent", "AGENTS.md"]);
     expect(r.value).toBe("*.log\n.copy-agent\nAGENTS.md\n");
     expect(addSvnIgnoreEntries(".copy-agent\nAGENTS.md").added).toEqual([]);
+  });
+
+  it("adds the Review změn data folder to svn:ignore as a bare name", () => {
+    const r = addSvnIgnoreEntries(".copy-agent\nAGENTS.md\n", [...IGNORE_ENTRIES, REVIEW_IGNORE]);
+    expect(r.added).toEqual([".review"]);
+    expect(r.value).toBe(".copy-agent\nAGENTS.md\n.review\n");
+    // gitu se netýká: tam ji skill i rozšíření zapisují do .git/info/exclude
+    expect(addGitignoreEntries("").content).not.toContain(".review");
   });
 });
 
