@@ -14,6 +14,21 @@ export interface RootFolder {
 }
 
 export const STATE_DIR = ".copy-agent";
+/** Složka s daty pro rozšíření Review změn (plán revize ze skillu /review-plan) a koncept, který skill zapisuje. */
+export const REVIEW_DATA_DIR = ".review";
+export const REVIEW_DRAFT = `${STATE_DIR}/review-agent.json`;
+
+/**
+ * Cesta patří k datům pro rozšíření Review změn: soubor .json ve složce `.review/` (i pod názvem
+ * kořenové složky) nebo koncept v `.copy-agent/`. Nejsou to změny projektu, takže se nenabízejí ke schválení jako úpravy kódu.
+ */
+export function isReviewData(rel: string): boolean {
+  const parts = rel.replace(/\\/g, "/").replace(/^\.\//, "").split("/").filter(Boolean);
+  if (parts.slice(-2).join("/") === REVIEW_DRAFT) return true;
+  // Jen soubory .json přímo ve složce .review, která leží v kořeni workspace nebo hned pod názvem kořenové složky.
+  const at = parts.length - 2;
+  return (at === 0 || at === 1) && parts[at] === REVIEW_DATA_DIR && parts[at + 1].toLowerCase().endsWith(".json");
+}
 /** Soubory s instrukcemi projektu; holá cesta k nim patří v multi-root workspace do první složky. */
 export const INSTRUCTION_FILE_NAMES = ["AGENTS.md", "COPY-AGENT.md"];
 /** Předpona cest do uživatelské konfigurace agenta (~/.copy-agent): globální skilly, skripty, pravidla. */

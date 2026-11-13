@@ -3,7 +3,9 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { NodeHost } from "../src/host/NodeHost";
-import { canonicalRel, homeStateRelOf, resolveHomeState, resolveRel } from "../src/protocol/roots";
+import { execFileSync } from "child_process";
+import { workspaceEnv } from "../src/host/spawn";
+import { canonicalRel, homeStateRelOf, isReviewData, resolveHomeState, resolveRel } from "../src/protocol/roots";
 import { isHelpRequest, parseInput, skillHelp } from "../src/protocol/slash";
 import { loadSkills } from "../src/skills/Skills";
 
@@ -72,6 +74,71 @@ describe("global skills via NodeHost", () => {
     expect(rn?.source?.startsWith(home)).toBe(true);
     expect(skills.some((s) => s.name === "skill-creator" && s.builtin)).toBe(true);
     for (const s of skills.filter((x) => x.builtin)) expect(skillHelp(s)).toContain("Použití:");
+  });
+});
+
+describe("built-in /review-plan (data for the Review změn extension)", () => {
+  const has = (cmd: string, ...args: string[]) => {
+    try {
+      execFileSync(cmd, args, { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const python = has("python3", "--version") ? "python3" : has("python", "--version") ? "python" : "";
+
+  it("is loaded with its script and Czech help", () => {
+    const skill = loadSkills(fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-rp-")), path.resolve("skills")).find((s) => s.name === "review-plan");
+    expect(skill?.builtin).toBe(true);
+    expect(skill?.body).toContain("## Scripts shipped with this skill");
+    expect(skill?.body).toMatch(/python .*review-plan\/scripts\/review_data\.py/);
+    expect(skillHelp(skill!)).toContain("Použití: /review-plan");
+  });
+
+  it("review data is not a project change", () => {
+    expect(isReviewData(".review/agent.json")).toBe(true);
+    expect(isReviewData("app/.review/agent.json")).toBe(true);
+    expect(isReviewData(".copy-agent/review-agent.json")).toBe(true);
+    expect(isReviewData("app/.copy-agent/review-agent.json")).toBe(true);
+    expect(isReviewData("src/.review/x.ts")).toBe(false);
+    expect(isReviewData("src/review/agent.json")).toBe(false);
+    expect(isReviewData(".copy-agent/skills/x.md")).toBe(false);
+    expect(isReviewData(".review")).toBe(false);
+  });
+
+  it("commands learn the workspace roots from the environment", async () => {
+    expect(workspaceEnv(["/ws/app", "/ws/lib"], "/ws/x.code-workspace", ":")).toEqual({ COPY_AGENT_ROOTS: "/ws/app:/ws/lib", COPY_AGENT_WORKSPACE_FILE: "/ws/x.code-workspace" });
+    expect(workspaceEnv([])).toEqual({});
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-env-"));
+    const host = new NodeHost(dir, { log: () => undefined });
+    const r = await host.run('node -e "process.stdout.write(process.env.COPY_AGENT_ROOTS)"', ".", 20000);
+    expect(r.output.trim()).toBe(path.resolve(dir));
+  });
+
+  it.skipIf(!python || !has("git", "--version"))("the script validates a draft and installs it with fingerprints", () => {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), "copy-agent-rp-"));
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: ws, stdio: "pipe" });
+    git("init", "-q");
+    git("config", "user.email", "test@example.invalid");
+    git("config", "user.name", "Test");
+    fs.writeFileSync(path.join(ws, ".gitignore"), ".copy-agent/\n");
+    fs.writeFileSync(path.join(ws, "a.txt"), "one\ntwo\n");
+    git("add", "-A");
+    git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "init");
+    fs.writeFileSync(path.join(ws, "a.txt"), "one\nTWO\n");
+    fs.mkdirSync(path.join(ws, ".copy-agent"));
+    const draft = path.join(ws, ".copy-agent", "review-agent.json");
+    fs.writeFileSync(draft, JSON.stringify({ kusy: [{ id: "k", soubor: "a.txt", radky: { od: 2, do: 2 }, titulek: "Dva" }], plan: [{ krok: 1, nazev: "Vše", kusy: ["k"] }] }));
+    const script = path.resolve("skills/review-plan/scripts/review_data.py");
+    const env = { ...process.env, ...workspaceEnv([ws]) };
+    expect(execFileSync(python, [script, "diff"], { cwd: ws, env, encoding: "utf8" })).toMatch(/\+2 +TWO/);
+    const out = execFileSync(python, [script, "check", "--file", ".copy-agent/review-agent.json"], { cwd: ws, env, encoding: "utf8" });
+    expect(out).toMatch(/^OK: 1 pieces, 1 plan steps, 2 of 2 changed lines covered/m);
+    const data = JSON.parse(fs.readFileSync(path.join(ws, ".review", "agent.json"), "utf8"));
+    expect(data.kusy[0].otisk).toMatch(/^[0-9a-f]{64}$/);
+    expect(fs.existsSync(draft)).toBe(false);
+    expect(execFileSync("git", ["status", "--short"], { cwd: ws, encoding: "utf8" })).toBe(" M a.txt\n");
   });
 });
 

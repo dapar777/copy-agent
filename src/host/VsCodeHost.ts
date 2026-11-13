@@ -7,7 +7,7 @@ import { FileEncoding } from "../tools/encoding";
 import { cfg, CONFIG, fileEncodingOf, fileExists, readText, resolveInWorkspace, tryToRel, workspaceFolders, workspaceName, workspaceRoot, writeText } from "../util";
 import { Host, HostPolicy, RunResult } from "./Host";
 import { captureScreenshot } from "./screenshot";
-import { spawnCommand } from "./spawn";
+import { spawnCommand, workspaceEnv } from "./spawn";
 
 const SEV = ["error", "warning", "info", "hint"];
 
@@ -134,7 +134,8 @@ export class VsCodeHost implements Host {
 
   run(command: string, cwdRel: string, timeoutMs: number, probeMs?: number, signal?: AbortSignal): Promise<RunResult> {
     const cwd = cwdRel && cwdRel !== "." ? resolveInWorkspace(cwdRel).fsPath : workspaceRoot().fsPath;
-    return spawnCommand(command, cwd, timeoutMs, probeMs, signal);
+    const wsFile = vscode.workspace.workspaceFile?.scheme === "file" ? vscode.workspace.workspaceFile.fsPath : undefined;
+    return spawnCommand(command, cwd, timeoutMs, probeMs, signal, workspaceEnv(workspaceFolders().map((f) => f.fsPath), wsFile));
   }
 
   async diagnostics(onlyRel?: string, maxLines = 60): Promise<string> {

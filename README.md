@@ -93,12 +93,20 @@ Když provádění akcí stojí na schválení příkazu, stavová karta zežlou
   **git checkpoint** a Undo kola, **chráněné cesty**, **kódování souborů** (zachová UTF-8/BOM/windows-1250/
   UTF-16 i CRLF), **multi-root workspace**, **obnova sezení** po restartu VS Code, **záznam průběhu**
   (`.copy-agent/transcript.jsonl`).
-- **Skilly**: vestavěné `/init` (založí `AGENTS.md`), `/commit`, `/review`, `/test`, `/fix`, `/explain`,
-  `/docs`, `/deps` a `/skill-creator`; vlastní v `~/.copy-agent/skills/` (globální, ve všech projektech)
+- **Skilly**: vestavěné `/init` (založí `AGENTS.md`), `/commit`, `/review`, `/review-plan`, `/test`, `/fix`,
+  `/explain`, `/docs`, `/deps` a `/skill-creator`; vlastní v `~/.copy-agent/skills/` (globální, ve všech projektech)
   nebo `.copy-agent/skills/` (projekt), soubor `název.md` nebo `název/SKILL.md` i se skripty.
   `/skill-creator <název> <k čemu je> [--local]` nový skill vytvoří přímo na správné místo (výchozí
   globálně; model smí mimo workspace zapisovat jen do `~/.copy-agent/`), se sekcí Help; `/název --help`
   ji zobrazí v panelu bez kola s modelem. Seznam skillů se po změně načte sám.
+- **Review změn před commitem**: `/review-plan` připraví data pro rozšíření
+  [Review změn](https://github.com/dapar777/vscode-review) (`dapar.vscode-review`): rozdělí necommitnuté
+  změny ze všech pracovních kopií (Git i SVN) na kusy, popíše je, ohodnotí riziko a sestaví plán revize.
+  Přiložený skript vypíše diff s čísly řádků, hotová data ověří proti skutečnému diffu, doplní otisky
+  a uloží jako `.review/agent.json`. Rozšíření pak samo nabídne otevření review. Složka `.review/` se
+  nepočítá mezi úpravy ke schválení a u SVN se doplní do `svn:ignore`.
+- **Skripty skillů znají workspace**: spouštěné příkazy dostávají `COPY_AGENT_ROOTS` (kořenové složky
+  oddělené oddělovačem cest) a `COPY_AGENT_WORKSPACE_FILE` (soubor `.code-workspace`, pokud je).
 - **Odkazy na soubory** v zadání jako `#cesta/soubor.ts`, `#soubor.ts:40-80`, `#file`, `#selection`.
 
 ## Příkazy a klávesy

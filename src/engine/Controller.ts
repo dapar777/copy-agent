@@ -6,7 +6,7 @@ import { VsCodeHost } from "../host/VsCodeHost";
 import { classifyProse, isOwnPrompt, looksLikeReply } from "../protocol/detect";
 import { buildAgentInstructions, buildCorrectionPrompt, BundleUsage, ProjectContext, ReviewMode, splitPrompt, Target } from "../protocol/prompt";
 import { parseRefs } from "../protocol/refs";
-import { STATE_DIR } from "../protocol/roots";
+import { isReviewData, STATE_DIR } from "../protocol/roots";
 import { BUILTIN_COMMANDS, composeTask, isHelpRequest, parseInput, skillHelp, SlashCommand } from "../protocol/slash";
 import { decodeEntities } from "../protocol/text";
 import { ReviewManager } from "../review/ReviewManager";
@@ -775,7 +775,8 @@ export class Controller implements vscode.Disposable {
     this.transcript = new Transcript(host);
     const listener: ChangeListener = {
       onWillChange: (path, kind, baseline, turn) => {
-        this.review.register(path, kind, baseline, turn);
+        // Data pro rozšíření Review změn nejsou úpravy kódu: do čekajících změn nepatří.
+        if (!isReviewData(path)) this.review.register(path, kind, baseline, turn);
         if (kind === "create") this.checkpoint.noteCreated(turn, path);
       },
       onWillDelete: (path, content, turn) => this.review.registerDelete(path, content, turn),
